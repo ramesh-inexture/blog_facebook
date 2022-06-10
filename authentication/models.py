@@ -7,7 +7,7 @@ from django.contrib.auth.models import (
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, password2=None, **KWARGS):
         """
-        Creates and saves a User with the given email, first_name, last_name, date_of_birth and password.
+        Creates and saves a User with the given email, first_name, last_name, user_name, date_of_birth and password.
         """
         if not email:
             raise ValueError('Users must have an email address')
@@ -15,9 +15,7 @@ class UserManager(BaseUserManager):
         user = self.model(
             email=self.normalize_email(email),
             **KWARGS
-            # first_name=first_name,
-            # last_name=last_name,
-            # date_of_birth=date_of_birth,
+
         )
 
         user.set_password(password)
@@ -33,9 +31,6 @@ class UserManager(BaseUserManager):
             email,
             password=password,
             **KWARGS
-            # first_name=first_name,
-            # last_name=last_name,
-            # date_of_birth=date_of_birth,
         )
         user.is_admin = True
         user.save(using=self._db)

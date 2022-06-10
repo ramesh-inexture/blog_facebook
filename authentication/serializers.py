@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from authentication.models import User
 
+#Registration Serializer
 class UserRegistrationSerializer(serializers.ModelSerializer):
     #we are writing this bcz we need confirm password
     password2 = serializers.CharField(style={'input_type': 'password'}, write_only=True)
@@ -23,8 +24,16 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
 
+#Login Serializer
 class UserLoginSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(max_length=255)
     class Meta:
         model = User
         fields = ['email', 'password']
+
+
+#Profile Serializer
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['email', 'user_name', 'first_name', 'last_name', 'date_of_birth']
