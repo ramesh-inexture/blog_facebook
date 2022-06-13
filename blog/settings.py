@@ -14,6 +14,9 @@ from pathlib import Path
 import os
 import django_heroku
 from datetime import timedelta
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,12 +26,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-0035-_+n2g8&k-7z4y2h4b7hnn56b+hptltrxzw+l&ztm-u&f='
+SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["blog-facebook.herokuapp.com"]
+ALLOWED_HOSTS = [
+                 "blog-facebook.herokuapp.com",
+                 "blog-facebook-dev.herokuapp.com",
+                 ]
 
 
 # Application definition
@@ -87,8 +93,8 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
         'NAME': 'blog_db',
-        'USER': 'postgres',
-        'PASSWORD': 'postgres',
+        'USER': os.environ.get('DB_USER'),
+        'PASSWORD': os.environ.get('DB_PASSWORD'),
         'HOST': 'localhost',
         'PORT': 5432
     }
