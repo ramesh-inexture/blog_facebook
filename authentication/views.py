@@ -82,9 +82,6 @@ class UserPasswordResetView(APIView):
         status=status.HTTP_200_OK)
 
 
-
-
-
 class UserProfileView(generics.RetrieveUpdateDestroyAPIView):
 
     """Retrieve, Update and Destroy View for Profile in User model"""
