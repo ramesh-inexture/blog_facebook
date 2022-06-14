@@ -1,12 +1,24 @@
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, generics
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
 from authentication.renderers import UserRenderer
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.permissions import IsAuthenticated
-from authentication.serializers import UserRegistrationSerializer,\
-    UserLoginSerializer, SendPasswordResetEmailSerializer, UserPasswordResetSerializer, UserProfileSerializer, UserChangePasswordSerializer
+from rest_framework.permissions import IsAuthenticated, BasePermission, SAFE_METHODS
+from .models import User
+from django.shortcuts import get_object_or_404
+from authentication.serializers import UserRegistrationSerializer, \
+    UserLoginSerializer, SendPasswordResetEmailSerializer, UserPasswordResetSerializer, UserProfileSerializer, \
+    UserChangePasswordSerializer
+
+class IsOwner(BasePermission):
+    message = 'Profile is restricted to the Owners only.'
+
+    def has_object_permission(self, request, view, obj):
+
+        # Read permissions are allowed to any request,
+        # so we'll always allow GET, HEAD or OPTIONS requests.
+        return obj.id == request.user.id
 
 
 # generate Token Manually
@@ -70,22 +82,44 @@ class UserPasswordResetView(APIView):
         status=status.HTTP_200_OK)
 
 
-# Profile view for User
-class UserProfileView(APIView):
-    renderer_classes = [UserRenderer]
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, format=None):
-        serializer = UserProfileSerializer(request.user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-#Change Password View for User
+
+class UserProfileView(generics.RetrieveUpdateDestroyAPIView):
+
+    """Retrieve, Update and Destroy View for Profile in User model"""
+
+    queryset = User.objects.all()
+    serializer_class = UserProfileSerializer
+    permission_classes = [IsAuthenticated, IsOwner]
+    # lookup_field = 'pk'
+
+    def get_object(self):
+        queryset = self.get_queryset()
+        obj = get_object_or_404(queryset, id=self.request.user.id)
+        return obj
+
+    def patch(self, request, *args, **kwargs):
+        response = super(UserProfileView, self).partial_update(request, *args, **kwargs)
+        return Response(
+            {"data": response.data, "message": "Profile updated successfully."},
+            status=response.status_code
+        )
+
+    def delete(self, request, *args, **kwargs):
+        response = super(UserProfileView, self).destroy(request, *args, **kwargs)
+        return Response(
+            {"data": response.data, "message": "Profile deleted successfully."},
+            status=response.status_code
+        )
+
+
 class UserChangePasswordView(APIView):
+    """ Change Password View for User """
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, format = None):
+    def post(self, request, format=None):
         serializer = UserChangePasswordSerializer(data=request.data, context={'user': request.user})
         serializer.is_valid(raise_exception=True)
         return Response({'msg': 'Password Changed Successfully'}, status=status.HTTP_200_OK)

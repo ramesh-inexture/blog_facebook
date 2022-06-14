@@ -59,7 +59,7 @@ class SendPasswordResetEmailSerializer(serializers.Serializer):
             link = 'http://localhost:3000/api/user/reset/'+uid+'/'+token
             print('password reset link', link)
             #Send Email
-            body = 'Click Following Link to Reset your Password'+link
+            body = f'Click Following Link to Reset your Password {link}'
             data = {
                 'subject': 'Reset Your Password',
                 'body': body,
@@ -101,14 +101,42 @@ class UserPasswordResetSerializer(serializers.Serializer):
             raise serializers.ValidationError('Token is not Valid or Expired')
 
 
-#Profile Serializer
 class UserProfileSerializer(serializers.ModelSerializer):
+    """Serializer for Profile """
+
     class Meta:
         model = User
-        fields = ['email', 'user_name', 'first_name', 'last_name', 'date_of_birth']
+        fields = ('id', 'user_name', 'first_name', 'last_name', 'email', 'profile_picture', 'date_of_birth', 'about_me')
+        extra_kwargs = {
+            'id': {'read_only': True},
+
+        }
 
 
-# Change password Serializer
+# class UpdateProfileSerializer(serializers.ModelSerializer):
+#     # email = serializers.EmailField(required=True)
+#
+#     class Meta:
+#         model = User
+#         fields = ('id', 'user_name', 'first_name', 'last_name', 'email', 'profile_picture', 'date_of_birth', 'about_me')
+
+    # def update(self, instance, validated_data):
+    #     user = self.context.get('user')
+    #
+    #     if user.pk != instance.pk:
+    #         raise serializers.ValidationError({"authorize": "You dont have permission for this user."})
+    #
+    #     instance.first_name = validated_data['first_name']
+    #     instance.last_name = validated_data['last_name']
+    #     instance.email = validated_data['email']
+    #     instance.username = validated_data['username']
+    #
+    #     instance.save()
+    #
+    #     return instance
+
+
+''' Change password Serializer'''
 class UserChangePasswordSerializer(serializers.Serializer):
     password = serializers.CharField(min_length=4, max_length=255,
     style={'input_type': 'password'}, write_only=True)

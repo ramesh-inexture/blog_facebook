@@ -47,6 +47,8 @@ class User(AbstractBaseUser):
     last_name = models.CharField(max_length=200)
     date_of_birth = models.DateField()
     user_name = models.CharField(max_length=200, unique=True)
+    profile_picture = models.ImageField(default='default.jpeg', upload_to='profile_picture')
+    about_me = models.TextField(max_length=500, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     is_admin = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
