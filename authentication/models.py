@@ -45,7 +45,7 @@ class User(AbstractBaseUser):
     )
     first_name = models.CharField(max_length=200)
     last_name = models.CharField(max_length=200)
-    date_of_birth = models.DateField()
+    date_of_birth = models.DateField(null=True)
     user_name = models.CharField(max_length=200, unique=True)
     profile_picture = models.ImageField(default='default.jpeg', upload_to='profile_picture')
     about_me = models.TextField(max_length=500, blank=True, null=True)
