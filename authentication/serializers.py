@@ -4,7 +4,11 @@ from django.utils.encoding import (smart_str, force_bytes, DjangoUnicodeDecodeEr
 from django.utils.http import (urlsafe_base64_encode, urlsafe_base64_decode)
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from authentication.utils import Util
+from dotenv import load_dotenv
+import os
 import django.contrib.auth.password_validation as validators
+
+load_dotenv()
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -60,12 +64,13 @@ class SendPasswordResetEmailSerializer(serializers.Serializer):
             uid = urlsafe_base64_encode(force_bytes((user.id)))
             print('Encoded UID', uid)
             token = PasswordResetTokenGenerator().make_token(user)
-            print('Token',token)
+            print('Token', token)
 
             """ creating a Link to reset password """
 
-            link = 'http://localhost:3000/api/user/reset-password/'+uid+'/'+token
-            # instance.request.build_absolute_uri(reverse('password-reset-confirm')),
+            link = f"{os.environ.get('HOST_LINK')}api/user/reset-password/{uid}/{token}"
+            # print(request.build)
+            # instance.request.build_absolute_uri(reverse('password-reset ')),
             print('password reset link', link)
             #Send Email
             body = f'Click Following Link to Reset your Password {link}'
