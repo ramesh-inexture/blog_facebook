@@ -58,10 +58,9 @@ class User(AbstractBaseUser):
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
-    # REQUIRED_FIELDS = ['first_name', 'last_name', 'date_of_birth']
 
     def __str__(self):
-        return self.email
+        return f"{self.id} | {self.email}"
 
     def has_perm(self, perm, obj=None):
         "Does the user have a specific permission?"

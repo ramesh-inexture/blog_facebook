@@ -4,25 +4,18 @@ from rest_framework.views import APIView
 from django.contrib.auth import authenticate
 from authentication.renderers import UserRenderer
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.permissions import IsAuthenticated, BasePermission, SAFE_METHODS
+from rest_framework.permissions import IsAuthenticated
 from .models import User
+from .permissions import IsOwner
 from django.shortcuts import get_object_or_404
-from authentication.serializers import UserRegistrationSerializer, \
-    UserLoginSerializer, SendPasswordResetEmailSerializer, UserPasswordResetSerializer, UserProfileSerializer, \
-    UserChangePasswordSerializer
-
-class IsOwner(BasePermission):
-    message = 'Profile is restricted to the Owners only.'
-
-    def has_object_permission(self, request, view, obj):
-
-        # Read permissions are allowed to any request,
-        # so we'll always allow GET, HEAD or OPTIONS requests.
-        return obj.id == request.user.id
+from authentication.serializers import (UserRegistrationSerializer,
+    UserLoginSerializer, SendPasswordResetEmailSerializer, UserPasswordResetSerializer, UserProfileSerializer,
+    UserChangePasswordSerializer)
 
 
-# generate Token Manually
 def get_tokens_for_user(user):
+    """ Generate Token """
+
     refresh = RefreshToken.for_user(user)
 
     return {
@@ -33,6 +26,8 @@ def get_tokens_for_user(user):
 
 # Registration View for user
 class UserRegistrationView(APIView):
+    """ User Registration View """
+
     renderer_classes = [UserRenderer]
 
     def post(self, request, format=None):
@@ -43,8 +38,8 @@ class UserRegistrationView(APIView):
         return Response({'token': token, 'msg': 'Registration Success'}, status=status.HTTP_201_CREATED)
 
 
-# Login View For User
 class UserLoginView(APIView):
+    """ User Login View """
     renderer_classes = [UserRenderer]
 
     def post(self, request, format=None):
@@ -53,16 +48,17 @@ class UserLoginView(APIView):
         email = serializer.data.get('email')
         password = serializer.data.get('password')
         user = authenticate(email=email, password=password)
-        if user is not None:
+        if user:
             token = get_tokens_for_user(user)
             return Response({'token': token, 'msg': 'Login Success'}, status=status.HTTP_200_OK)
         else:
             return Response({'errors': {'non_field_errors': ['Email or password is not valid']}},
-                                status=status.HTTP_404_NOT_FOUND)
+                            status=status.HTTP_404_NOT_FOUND)
 
 
-#Send Email to Reset Password (Forgot password) View
 class SendPasswordResetEmailView(APIView):
+    """ This View Used in Sending Email to Reset Password (Forgot password) View """
+
     renderer_classes = [UserRenderer]
 
     def post(self, request, format=None):
@@ -71,24 +67,25 @@ class SendPasswordResetEmailView(APIView):
         return Response({'msg': 'Password Reset link send. Please check your Email'}, status=status.HTTP_200_OK)
 
 
-#Reset Password View
 class UserPasswordResetView(APIView):
+    """ After Sending URL for Reset Password This View Handles How to Reset Password by Getting Token and id """
+
     renderer_classes = [UserRenderer]
 
     def post(self, request, uid, token, format=None):
         serializer = UserPasswordResetSerializer(data=request.data, context={'uid': uid, 'token': token})
         serializer.is_valid(raise_exception=True)
         return Response({'msg': 'Password Reset Successfully'},
-        status=status.HTTP_200_OK)
+                        status=status.HTTP_200_OK)
 
 
 class UserProfileView(generics.RetrieveUpdateDestroyAPIView):
-
-    """Retrieve, Update and Destroy View for Profile in User model"""
+    """ Retrieve, Update and Destroy View for Profile in User model To manage Profile Feature of Blog"""
 
     queryset = User.objects.all()
     serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated, IsOwner]
+
     # lookup_field = 'pk'
 
     def get_object(self):

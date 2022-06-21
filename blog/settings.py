@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'authentication',
     'rest_framework_simplejwt',
+    'posts',
 
 ]
 
@@ -117,14 +118,26 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+    {
+        'NAME': 'authentication.validators.SpecialcharValidator',
+    },
+    {
+        'NAME': 'authentication.validators.NumericValidator',
+    },
+    {
+        'NAME': 'authentication.validators.UppercaseValidator',
+    },
+    {
+        'NAME': 'authentication.validators.LowercaseValidator',
+    },
+
+
 ]
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
-
-
 }
 
 # Internationalization
@@ -166,7 +179,7 @@ EMAIL_USE_TLS = True
 
 #JWT Settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 
 
@@ -184,7 +197,7 @@ SIMPLE_JWT = {
 
 }
 
-PASSWORD_RESET_TIMEOUT = 900        # 900 Sec = 15 Min
+PASSWORD_RESET_TIMEOUT = 1800        # 900 Sec = 15 Min
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8080",
