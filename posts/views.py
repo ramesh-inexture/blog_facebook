@@ -188,7 +188,6 @@ class SinglePostListView(generics.ListAPIView):
     """ getting all data of Post from posts and uploaded File through post_id """
     def get(self, request, *args, **kwargs):
         post_id = self.request.data.get('post_id')
-        print(request.fu)
 
         """if post_id is not Provided then this will show message """
         if post_id is None or post_id == "":

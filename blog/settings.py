@@ -12,7 +12,6 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 
 from pathlib import Path
 import os
-import django_heroku
 from datetime import timedelta
 from dotenv import load_dotenv
 
@@ -203,6 +202,3 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8080",
     "http://127.0.0.1:8080",
 ]
-
-
-django_heroku.settings(locals())
