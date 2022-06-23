@@ -8,5 +8,5 @@ urlpatterns = [
     path('post-list/', PostLists.as_view()),
     path('see-post/', SinglePostListView.as_view()),
     path('manage-post/', UpdateDeletePosts.as_view(), name='manage-posts'),
-    path('manage-files/', UpdateDeleteFiles.as_view(), name='manage-files'),
+    path('manage-files/', UpdateDeleteFiles.as_view(), name='manage-files')
 ]

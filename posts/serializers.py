@@ -1,9 +1,10 @@
 from rest_framework import serializers
-from .models import Posts, UploadedFiles
+from .models import Posts, UploadedFiles, User
 
 
 class UploadFilesSerializer(serializers.ModelSerializer):
     """ serializer for UploadedFiles Model """
+
     class Meta:
         model = UploadedFiles
         fields = ['id', 'post_id', 'file']
@@ -11,6 +12,7 @@ class UploadFilesSerializer(serializers.ModelSerializer):
 
 class PostModelSerializer(serializers.ModelSerializer):
     """ serializer for Posts Model """
+
     class Meta:
         model = Posts
         fields = ['id', 'title', 'overview', 'description', 'category_id', 'posted_by']
@@ -31,6 +33,7 @@ class PostSerializer(serializers.ModelSerializer):
 
 class UpdateDeleteFilesSerializer(serializers.ModelSerializer):
     """ serializer for Update or Delete Files """
+
     class Meta:
         model = UploadedFiles
         fields = ['id', 'post_id', 'file']
@@ -42,6 +45,7 @@ class UpdateDeleteFilesSerializer(serializers.ModelSerializer):
 
 class UpdateDeletePostSerializer(serializers.ModelSerializer):
     """ serializer for Update or Delete Posts """
+
     class Meta:
         model = Posts
         fields = ['id', 'title', 'overview', 'description', 'category_id', 'posted_by']
@@ -49,6 +53,3 @@ class UpdateDeletePostSerializer(serializers.ModelSerializer):
             'id': {'read_only': True},
             'posted_by': {'read_only': True}
         }
-
-
-

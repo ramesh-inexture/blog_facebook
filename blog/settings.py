@@ -31,6 +31,7 @@ SECRET_KEY = 'django-insecure-0035-_+n2g8&k-7z4y2h4b7hnn56b+hptltrxzw+l&ztm-u&f=
 DEBUG = True
 
 ALLOWED_HOSTS = [
+                 "127.0.0.1",
                  "blog-facebook.herokuapp.com",
                  "blog-facebook-dev.herokuapp.com",
                  ]
@@ -50,7 +51,10 @@ INSTALLED_APPS = [
     'rest_framework',
     'authentication',
     'rest_framework_simplejwt',
+    'django_filters',
     'posts',
+    'Friends',
+
 
 ]
 

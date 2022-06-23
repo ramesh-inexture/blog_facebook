@@ -5,6 +5,7 @@ from .models import Posts, UploadedFiles
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from .models import User
+# from rest_framework.filters import SearchFilter,OrderingFilter
 from authentication.permissions import IsOwner
 from .serializers import (PostSerializer, UploadFilesSerializer, PostModelSerializer, UpdateDeleteFilesSerializer,
                           UpdateDeletePostSerializer)
@@ -161,14 +162,6 @@ class UpdateDeleteFiles(generics.RetrieveUpdateDestroyAPIView):
         )
 
 
-# class SinglePostListView(generics.ListAPIView):
-#     serializer_class = PostSerializer
-#
-#     def get_queryset(self):
-#         post_id = self.request.data.get('post_id')
-#         queryset = UploadedFiles.objects.filter(post_id=post_id)
-#         return queryset
-
 class SinglePostListView(generics.ListAPIView):
     """
     Listing Post through this APIView after Authenticating that user it will list out
@@ -207,14 +200,3 @@ class SinglePostListView(generics.ListAPIView):
                 response.data,
                 status=response.status_code
             )
-
-
-
-
-
-# /api/update/?pk=3
-#
-# /api/update/
-#
-# def self, request, *args, **kwargs
-#     self.request.GET.data('pk')

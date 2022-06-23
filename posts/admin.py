@@ -4,4 +4,3 @@ from .models import *
 admin.site.register(Posts)
 admin.site.register(UploadedFiles)
 admin.site.register(PostCategories)
-
