@@ -68,7 +68,7 @@ class SendPasswordResetEmailSerializer(serializers.Serializer):
 
             """ creating a Link to reset password """
 
-            link = f"{os.environ.get('HOST_LINK')}api/user/reset-password/{uid}/{token}"
+            link = f"{os.environ.get('HOST_LINK')}api/user/reset-password/{uid}/{token}/"
             # print(request.build)
             # instance.request.build_absolute_uri(reverse('password-reset ')),
             print('password reset link', link)

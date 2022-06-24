@@ -39,10 +39,8 @@ class UploadFileAPIView(APIView):
 
     def post(self, request, format=None):
         """ getting user_id of Authenticated User to Create Post """
-        post_id = request.data.get('post_id')
-        request.data['post_id'] = post_id
         """ serializing File data and check if that is valid or not """
-        serializer = UploadFilesSerializer(data=request.data, context={'post_id': post_id})
+        serializer = UploadFilesSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
             serializer.save()
         return Response({'data': serializer.data, 'msg': 'File Uploaded Successfully'},
