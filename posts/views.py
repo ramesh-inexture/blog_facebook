@@ -412,9 +412,3 @@ class TrendingFeedAPIView(generics.ListAPIView):
             latest_like=Count('post_like', filter=Q(post_like__created_at__gte=week_ago))
         ).order_by("-latest_like")[:10]
         return queryset
-
-
-
-
-
-

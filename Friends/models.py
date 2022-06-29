@@ -17,6 +17,3 @@ class Friends(models.Model):
 
     def __str__(self):
         return f"{self.id} | {self.sender_id} | {self.receiver_id}"
-
-
-
