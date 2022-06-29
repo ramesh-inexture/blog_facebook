@@ -62,16 +62,12 @@ class SendPasswordResetEmailSerializer(serializers.Serializer):
             """ we are Encoding UID when we get UID from database """
 
             uid = urlsafe_base64_encode(force_bytes((user.id)))
-            print('Encoded UID', uid)
             token = PasswordResetTokenGenerator().make_token(user)
-            print('Token', token)
 
             """ creating a Link to reset password """
 
             link = f"{os.environ.get('HOST_LINK')}api/user/reset-password/{uid}/{token}/"
-            # print(request.build)
             # instance.request.build_absolute_uri(reverse('password-reset ')),
-            print('password reset link', link)
             #Send Email
             body = f'Click Following Link to Reset your Password {link}'
             data = {

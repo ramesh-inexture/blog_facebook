@@ -1,14 +1,19 @@
 from django.shortcuts import get_object_or_404
+# from rest_framework.filters import SearchFilter, OrderingFilter
+from django.db.models import Q, Count
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework import generics, status
 from .models import Posts, UploadedFiles
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from .models import User
-# from rest_framework.filters import SearchFilter,OrderingFilter
+from .models import User, Likes, Comments
+from Friends.utils import check_is_friend
 from authentication.permissions import IsOwner
 from .serializers import (PostSerializer, UploadFilesSerializer, PostModelSerializer, UpdateDeleteFilesSerializer,
-                          UpdateDeletePostSerializer)
+                          UpdateDeletePostSerializer, LikePostSerializer, CommentOnPostSerializer,
+                          TrendingFeedsSerializer)
+import datetime as DT
 
 
 class PostCreateAPIView(APIView):
@@ -54,7 +59,7 @@ class PostLists(generics.ListAPIView):
     """
     permission_classes = [IsAuthenticated]
     serializer_class = PostSerializer
-    queryset = Posts.objects.all()
+    pagination_class = PageNumberPagination
 
     """ getting all Objects of the post through get_queryset """
     def get_queryset(self):
@@ -65,25 +70,34 @@ class PostLists(generics.ListAPIView):
     """ getting all data of Post from posts and uploaded File through posted_by id """
     def get(self, request, *args, **kwargs):
         posted_by = self.request.data.get('posted_by')
-
-        """if Posted_by (user_id) is not Provided then this will show message """
+        user_id = request.user.id
         if posted_by is None or posted_by == "":
             return Response(
-                {'msg':'posted_by id not provide'},
+                {'msg': " 'posted_by' id not provide"},
                 status=status.HTTP_400_BAD_REQUEST
                 )
         """ checking Provided User_id is Valid or not"""
-        queryset1 = User.objects.filter(id=posted_by).first()
-        if queryset1 is None:
+        if not User.objects.filter(id=posted_by).exists():
             return Response({
-                'msg':'User Not Found'
+                'msg': 'User Not Exists'
             })
-        """ if valid Posted_by (user_id) is Provided and if data is available then it will return that data """
-        response = super(PostLists, self).get(request, *args, **kwargs)
-        return Response(
-                response.data,
-                status=response.status_code
-            )
+        friends = check_is_friend(user_id, posted_by)
+        if str(user_id) != str(posted_by):
+            if friends is None:
+                return Response({'msg': f'only friends can see Posts'})
+            else:
+                if friends[0] is False:
+                    return Response({'msg': f'only friends can see Posts'})
+        queryset = self.get_queryset()
+
+        """Adding Pagination and Creating Pages"""
+        page = self.paginate_queryset(queryset)
+        if page:
+            serializer = PostSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        else:
+            serializer = PostSerializer(queryset, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class UpdateDeletePosts(generics.RetrieveUpdateDestroyAPIView):
@@ -167,7 +181,6 @@ class SinglePostListView(generics.ListAPIView):
     """
     permission_classes = [IsAuthenticated]
     serializer_class = PostSerializer
-    # queryset = Posts.objects.all()
 
     """ getting all Objects of the post through get_queryset """
     def get_queryset(self):
@@ -198,3 +211,210 @@ class SinglePostListView(generics.ListAPIView):
                 response.data,
                 status=response.status_code
             )
+
+
+class LikePostView(generics.CreateAPIView):
+    """ Creating an Endpoint for Like Posts authenticated User Can Like Posts Of Friend or Own Post"""
+    serializer_class = LikePostSerializer
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        """ Overriding create method to create custom request for Like Post endpoint """
+        liked_by = request.user.id
+        """Getting Data with data fields (mainly Post_id) from users to Like the post of given Post id"""
+        data = request.data
+        if 'post_id' not in data.keys():
+            return Response({"msg": " 'post_id' is Required to Like Post"}, status=status.HTTP_406_NOT_ACCEPTABLE)
+        post_id = data['post_id']
+        data['liked_by'] = liked_by
+        """ Checking that Post owner and user is friends or not """
+        obj = Posts.objects.get(id=post_id)
+        post_owner = obj.posted_by.id
+        friend_status = None
+        if str(liked_by) != str(post_owner):
+            friend_status = check_is_friend(liked_by, post_owner)
+        if friend_status is not None and friend_status[0] is True or str(liked_by) == str(post_owner):
+            """ check that User has Liked this Post Before or Not If user liked this post than new like
+             should not be considered """
+            queryset1 = Likes.objects.filter(liked_by=liked_by, post_id=post_id).first()
+            if queryset1 is not None:
+                return Response({"msg": "You have Already Liked this Post"})
+            serializer = self.serializer_class(data=data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    'status': 200,
+                    'message': 'you liked a post',
+                    'data': serializer.data
+                })
+        else:
+            return Response({'msg': 'Only Friends Can Like This Post'})
+
+        return Response({
+            'data': serializer.errors, 'msg': 'Some error has occurred'}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+class CommentOnPostView(generics.CreateAPIView):
+    """ Overriding create method to create custom request for Like Post endpoint """
+    serializer_class = CommentOnPostSerializer
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        commented_by = request.user.id
+        """Getting Data with data fields (mainly Post_id) from users to Comment on the post of given Post id"""
+        data = request.data
+        if 'post_id' not in data.keys():
+            return Response({"msg": " 'post_id' is Required to Make Comment On a Post"},
+                            status=status.HTTP_406_NOT_ACCEPTABLE)
+        post_id = data['post_id']
+        data['commented_by'] = commented_by
+        obj = Posts.objects.get(id=post_id)
+        post_owner = obj.posted_by.id
+        """ Checking Friend Status of User And Post Owner """
+        friend_status = None
+
+        if str(commented_by) != str(post_owner):
+            friend_status = check_is_friend(commented_by, post_owner)
+        if friend_status is not None and friend_status[0] is True or str(commented_by) == str(post_owner):
+            """ If User is a friend Of Post_owner who have uploaded post only then he/she should be able to 
+            comment on that Post """
+            serializer = self.serializer_class(data=data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    'status': 200,
+                    'message': 'you commented on a post',
+                    'data': serializer.data
+                })
+        else:
+            return Response({'msg': 'Only Friends Can Comment on This Post'}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'data': serializer.errors, 'msg': 'Some error has occurred'}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+class RetrieveDestroyCommentAPIView(generics.RetrieveDestroyAPIView):
+    """
+    Concrete view for retrieving or deleting a model instance.
+    """
+    serializer_class = CommentOnPostSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user_id = self.request.user.id
+        data = self.request.data
+        if 'post_id' and 'id' in data.keys():
+            comment_id = data.get('id')
+            post_id = data.get('post_id')
+            queryset = Comments.objects.filter(id=comment_id, post_id=post_id)
+            return queryset
+        else:
+            None
+
+    def get_object(self):
+        """ getting query_set and creating Obj of user for  managing Comments """
+        queryset = self.get_queryset()
+        if queryset is None:
+            return None
+        obj = get_object_or_404(queryset)
+        return obj
+
+    def get(self, request, *args, **kwargs):
+        obj1 = self.get_object()
+        data = self.request.data
+        if 'post_id' and 'id' not in data.keys():
+            return Response({"msg": "'post_id and 'id' are Required Field For Get Comment Data "},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if obj1 is None:
+            return Response({"msg": "No Comments yet"})
+        return self.retrieve(request, *args, **kwargs)
+
+    def delete(self, request, *args, **kwargs):
+        """deleting comment object of provide post_id and id """
+        obj1 = self.get_object()
+        data = self.request.data
+        if 'post_id' and 'id' not in data.keys():
+            return Response({"msg": "'post_id and 'id' are Required Field For Delete Comment Data "},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if obj1 is None:
+            return Response({"msg": "No Comments yet"}, status=status.HTTP_400_BAD_REQUEST)
+        response = super(RetrieveDestroyCommentAPIView, self).destroy(request, *args, **kwargs)
+        return Response(
+            {"data": response.data, "message": "Comment Deleted SuccessFully"},
+            status=response.status_code
+        )
+
+
+class RetrieveDestroyLikeAPIView(generics.RetrieveDestroyAPIView):
+    """
+    Concrete view for retrieving or deleting a model instance.
+    """
+    serializer_class = LikePostSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        data = self.request.data
+        if 'post_id' and 'id' in data.keys():
+            like_id = data.get('id')
+            post_id = data.get('post_id')
+            queryset = Likes.objects.filter(id=like_id, post_id=post_id)
+            return queryset
+        else:
+            None
+
+    def get_object(self):
+        """ getting query_set and creating Obj of user for  managing likes On Post"""
+        queryset = self.get_queryset()
+        if queryset is None:
+            return None
+        obj = get_object_or_404(queryset)
+        return obj
+
+    def get(self, request, *args, **kwargs):
+        user_id = self.request.user.id
+        obj1 = self.get_object()
+        data = self.request.data
+        if 'post_id' and 'id' not in data.keys():
+            return Response({"msg": "'post_id and 'id' are Required Field For Get Like Data "},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if obj1 is None:
+            return Response({"msg": "No Likes yet"}, status=status.HTTP_400_BAD_REQUEST)
+        return self.retrieve(request, *args, **kwargs)
+
+    def delete(self, request, *args, **kwargs):
+        """deleting like object of provide like_id and id"""
+        obj1 = self.get_object()
+        data = self.request.data
+        if 'post_id' and 'id' not in data.keys():
+            return Response({"msg": "'post_id and 'id' are Required Field For Delete Like Data "},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if obj1 is None:
+            return Response({"msg": "No Likes yet"}, status=status.HTTP_400_BAD_REQUEST)
+        response = super(RetrieveDestroyLikeAPIView, self).destroy(request, *args, **kwargs)
+        return Response(
+            {"data": response.data, "message": "Like Removed SuccessFully"},
+            status=response.status_code
+        )
+
+
+class TrendingFeedAPIView(generics.ListAPIView):
+    """ Trending Posts will be Listing Through This APIView by The use Of TrendingFeedsSerializer"""
+    permission_classes = [IsAuthenticated]
+    serializer_class = TrendingFeedsSerializer
+
+    def get_queryset(self):
+        """getting Latest Trending Posts Through data of Today and """
+        today = DT.date.today()
+        week_ago = today - DT.timedelta(days=7)
+        queryset = Posts.objects.filter(is_public=True).annotate(
+            latest_like=Count('post_like', filter=Q(post_like__created_at__gte=week_ago))
+        ).order_by("-latest_like")[:10]
+        return queryset
+
+
+
+
+
+

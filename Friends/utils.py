@@ -22,3 +22,6 @@ def check_is_friend(user_id_1, user_id_2):
         """ if Data Not Available then it will return None"""
         return None
 
+
+
+

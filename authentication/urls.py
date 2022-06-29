@@ -1,11 +1,6 @@
 from django.urls import path
 from .views import UserRegistrationView, UserLoginView, SendPasswordResetEmailView, UserPasswordResetView, \
     UserChangePasswordView, UserProfileView
-# from rest_framework.routers import DefaultRouter
-#
-# router = DefaultRouter()
-# router.register('profileapi', UpdateProfileView, basename='profile')
-
 
 urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='register'),

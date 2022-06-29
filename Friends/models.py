@@ -14,7 +14,6 @@ class Friends(models.Model):
     is_blocked = models.BooleanField(default=False)
     created_on = models.DateTimeField(auto_now_add=True)
     updated_on = models.DateTimeField(auto_now=True)
-    print(sender_id)
 
     def __str__(self):
         return f"{self.id} | {self.sender_id} | {self.receiver_id}"

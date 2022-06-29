@@ -1,11 +1,13 @@
 from django.shortcuts import get_object_or_404
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from Friends.utils import check_is_friend
 from .models import User, Friends
 from rest_framework import generics, status
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import IsAuthenticated
-from .serializers import (SearchFriendSerializer, MakeFriendRequestSerializer, ListFriendRequestSerializer, ManageFriendRequestSerializer)
+from .serializers import (SearchFriendSerializer, MakeFriendRequestSerializer, ListFriendRequestSerializer,
+                          ManageFriendRequestSerializer)
 
 
 class SearchFriendView(generics.ListAPIView):
@@ -66,17 +68,21 @@ class SeeFriendRequestView(generics.ListAPIView):
     """ LIST View Of All Pending Friend Requests """
     serializer_class = ListFriendRequestSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = PageNumberPagination
 
     def get_queryset(self):
         receiver_id = self.request.user.id
-        print(receiver_id)
         return Friends.objects.filter(receiver_id=receiver_id, is_friend=False)
 
     def get(self, request):
         queryset = self.get_queryset()
-        # Note the use of `get_queryset()` instead of `self.queryset`
-        serializer = ListFriendRequestSerializer(queryset, many=True)
-        return Response(serializer.data)
+        page = self.paginate_queryset(queryset)
+        if page:
+            serializer = ListFriendRequestSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        else:
+            serializer = ListFriendRequestSerializer(queryset, many=True)
+            return Response(serializer.data)
 
 
 class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
@@ -87,7 +93,6 @@ class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         user_id = self.request.user.id
         data = self.request.data
-        # print()
         if 'sender_id' in data.keys() and int(data['sender_id']) != int(user_id):
             sender_id = data.get('sender_id')
             receiver_id = user_id
@@ -126,11 +131,11 @@ class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
         obj1 = self.get_object()
         if obj1 is not None and obj1.is_friend is False:
             data = request.data
-            print(data)
             if 'receiver_id' in data.keys() and int(data['receiver_id']) != int(user_id):
                 return Response({'msg': 'You can Not Accept Your Own Sent Request'}, status=status.HTTP_401_UNAUTHORIZED)
             if 'is_friend' not in data.keys():
-                return Response({'msg': " 'is_friend' is required to Accept Friend Request"})
+                return Response({'msg': " 'is_friend' is required to Accept Friend Request"},
+                                status=status.HTTP_400_BAD_REQUEST)
             status_of_friend = request.data['is_friend']
             status_of_friend = status_of_friend.capitalize()
             if str(obj1.is_friend) == str(status_of_friend):
@@ -143,7 +148,7 @@ class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
                 status=response.status_code
             )
         if obj1 is not None and obj1.is_friend:
-            return Response({"msg": "User is Already Your Friend"}, status=status.HTTP_200_OK)
+            return Response({"msg": "User is Already Your Friend"}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"msg": "Not Found"}, status=status.HTTP_400_BAD_REQUEST)
 
