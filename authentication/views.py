@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404
 from authentication.serializers import (UserRegistrationSerializer,
     UserLoginSerializer, SendPasswordResetEmailSerializer, UserPasswordResetSerializer, UserProfileSerializer,
     UserChangePasswordSerializer)
+from .utils import Util
 
 
 def get_tokens_for_user(user):
@@ -117,3 +118,4 @@ class UserChangePasswordView(APIView):
         serializer = UserChangePasswordSerializer(data=request.data, context={'user': request.user})
         serializer.is_valid(raise_exception=True)
         return Response({'msg': 'Password Changed Successfully'}, status=status.HTTP_200_OK)
+
