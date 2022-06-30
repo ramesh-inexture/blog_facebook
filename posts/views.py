@@ -1,19 +1,23 @@
 from django.shortcuts import get_object_or_404
-# from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db.models import Q, Count
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework import generics, status
+
+from authentication.utils import Util
+from notifications.serializers import NotificationSerializer
 from .models import Posts, UploadedFiles
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from .models import User, Likes, Comments
 from Friends.utils import check_is_friend
-from authentication.permissions import IsOwner
+from authentication.permissions import IsOwner, IsOwnerOrIsAdmin
 from .serializers import (PostSerializer, UploadFilesSerializer, PostModelSerializer, UpdateDeleteFilesSerializer,
                           UpdateDeletePostSerializer, LikePostSerializer, CommentOnPostSerializer,
                           TrendingFeedsSerializer)
+import blog.constants as cons
 import datetime as DT
+
 
 
 class PostCreateAPIView(APIView):
@@ -105,7 +109,7 @@ class UpdateDeletePosts(generics.RetrieveUpdateDestroyAPIView):
     queryset = Posts.objects.all()
     serializer_class = UpdateDeletePostSerializer
     """ checking permission for authentication and IsOwner or Not """
-    permission_classes = [IsOwner, IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOwnerOrIsAdmin]
 
     def get_object(self):
         """ getting post-id and creating Obj of user for checking condition IsOwner or not"""
@@ -230,23 +234,46 @@ class LikePostView(generics.CreateAPIView):
         """ Checking that Post owner and user is friends or not """
         obj = Posts.objects.get(id=post_id)
         post_owner = obj.posted_by.id
+        post_owner_email = obj.posted_by.email
         friend_status = None
         if str(liked_by) != str(post_owner):
             friend_status = check_is_friend(liked_by, post_owner)
         if friend_status is not None and friend_status[0] is True or str(liked_by) == str(post_owner):
             """ check that User has Liked this Post Before or Not If user liked this post than new like
              should not be considered """
+            user_name = request.user.user_name
             queryset1 = Likes.objects.filter(liked_by=liked_by, post_id=post_id).first()
             if queryset1 is not None:
                 return Response({"msg": "You have Already Liked this Post"})
             serializer = self.serializer_class(data=data)
             if serializer.is_valid():
+                """ 
+                Making an Serializer for notification For User
+                To make Serializer We are Getting Serializer by importing NotificationSerializer from 
+                notifications.serializers 
+                """
+                notification_data = {'notified_user': post_owner, 'notified_by': liked_by, 'header': cons.LIKE_HEADER,
+                        'body': cons.LIKE_BODY.format(user_name)}
+                notification_serializer = NotificationSerializer(data=notification_data)
+                if notification_serializer.is_valid():
+                    notification_serializer.save()
+                    """ After Saving Data on notification Table we Will Notify User Through Email"""
+                    data = {
+                        'subject': cons.LIKE_HEADER,
+                        'body': cons.LIKE_BODY.format(user_name),
+                        'to_email': post_owner_email
+                    }
+                    Util.send_email(data)
+                else:
+                    return Response({'data': notification_serializer.errors, 'msg': 'Some error has occurred'}, status=status.HTTP_400_BAD_REQUEST)
+                """ After Notification Created We will Going To Save Serialized Data of Post Like """
                 serializer.save()
                 return Response({
-                    'status': 200,
-                    'message': 'you liked a post',
-                    'data': serializer.data
-                })
+                        'status': 200,
+                        'message': 'you liked a post',
+                        'data': serializer.data
+                    })
+
         else:
             return Response({'msg': 'Only Friends Can Like This Post'})
 
@@ -262,6 +289,7 @@ class CommentOnPostView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         commented_by = request.user.id
+        user_name = request.user.user_name
         """Getting Data with data fields (mainly Post_id) from users to Comment on the post of given Post id"""
         data = request.data
         if 'post_id' not in data.keys():
@@ -271,16 +299,37 @@ class CommentOnPostView(generics.CreateAPIView):
         data['commented_by'] = commented_by
         obj = Posts.objects.get(id=post_id)
         post_owner = obj.posted_by.id
+        post_owner_email = obj.posted_by.email
         """ Checking Friend Status of User And Post Owner """
         friend_status = None
 
         if str(commented_by) != str(post_owner):
             friend_status = check_is_friend(commented_by, post_owner)
-        if friend_status is not None and friend_status[0] is True or str(commented_by) == str(post_owner):
+        if friend_status is not None and friend_status[0] is True or str(commented_by) == str(post_owner) :
             """ If User is a friend Of Post_owner who have uploaded post only then he/she should be able to 
             comment on that Post """
             serializer = self.serializer_class(data=data)
             if serializer.is_valid():
+                """ 
+                Making an Serializer for notification For User
+                To make Serializer We are Getting Serializer by importing NotificationSerializer from 
+                notifications.serializers 
+                """
+                notification_data = {'notified_user': post_owner, 'notified_by': commented_by, 'header': cons.COMMENT_HEADER,
+                        'body': cons.COMMENT_BODY.format(user_name)}
+                notification_serializer = NotificationSerializer(data=notification_data)
+                if notification_serializer.is_valid():
+                    notification_serializer.save()
+                    """ After Saving Data on notification Table we Will Notify User Through Email"""
+                    data = {
+                        'subject': cons.COMMENT_HEADER,
+                        'body': cons.COMMENT_BODY.format(user_name),
+                        'to_email': post_owner_email
+                    }
+                    Util.send_email(data)
+                else:
+                    return Response({'data': notification_serializer.errors, 'msg': 'Some error has occurred'}, status=status.HTTP_400_BAD_REQUEST)
+                """ After Notification Created We will Going To Save Serialized Data of Post Comment """
                 serializer.save()
                 return Response({
                     'status': 200,
@@ -300,10 +349,9 @@ class RetrieveDestroyCommentAPIView(generics.RetrieveDestroyAPIView):
     Concrete view for retrieving or deleting a model instance.
     """
     serializer_class = CommentOnPostSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsOwnerOrIsAdmin, IsAuthenticated]
 
     def get_queryset(self):
-        user_id = self.request.user.id
         data = self.request.data
         if 'post_id' and 'id' in data.keys():
             comment_id = data.get('id')
@@ -315,10 +363,14 @@ class RetrieveDestroyCommentAPIView(generics.RetrieveDestroyAPIView):
 
     def get_object(self):
         """ getting query_set and creating Obj of user for  managing Comments """
+        user_id = self.request.user.id
         queryset = self.get_queryset()
         if queryset is None:
             return None
         obj = get_object_or_404(queryset)
+        commented_by = obj.commented_by.id
+        if user_id != commented_by:
+            self.check_object_permissions(self.request, obj.post_id.posted_by)
         return obj
 
     def get(self, request, *args, **kwargs):
@@ -340,11 +392,13 @@ class RetrieveDestroyCommentAPIView(generics.RetrieveDestroyAPIView):
                             status=status.HTTP_400_BAD_REQUEST)
         if obj1 is None:
             return Response({"msg": "No Comments yet"}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'msg', 'done'})
         response = super(RetrieveDestroyCommentAPIView, self).destroy(request, *args, **kwargs)
         return Response(
-            {"data": response.data, "message": "Comment Deleted SuccessFully"},
-            status=response.status_code
-        )
+                {"data": response.data, "message": "Comment Deleted SuccessFully"},
+                status=response.status_code
+            )
 
 
 class RetrieveDestroyLikeAPIView(generics.RetrieveDestroyAPIView):

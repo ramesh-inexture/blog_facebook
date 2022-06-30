@@ -2,6 +2,9 @@ from django.shortcuts import get_object_or_404
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from Friends.utils import check_is_friend
+from authentication.utils import Util
+import blog.constants as cons
+from notifications.serializers import NotificationSerializer
 from .models import User, Friends
 from rest_framework import generics, status
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -55,6 +58,30 @@ class MakeFriendRequestView(generics.CreateAPIView):
 
         serializer = self.serializer_class(data=data)
         if serializer.is_valid():
+            """ 
+                Making an Serializer for notification For User
+                To make Serializer We are Getting Serializer by importing NotificationSerializer from 
+                notifications.serializers 
+            """
+            user_name = request.user.user_name
+            obj = User.objects.get(id=receiver_id)
+            friend_email = obj.email
+            notification_data = {'notified_user': receiver_id, 'notified_by': sender_id, 'header': cons.FRIEND_REQUEST_HEADER,
+                        'body': cons.FRIEND_REQUEST_BODY.format(user_name)}
+            notification_serializer = NotificationSerializer(data=notification_data)
+            if notification_serializer.is_valid():
+                notification_serializer.save()
+                """ After Saving Data on notification Table we Will Notify User Through Email"""
+                notify_data = {
+                    'subject': cons.FRIEND_REQUEST_HEADER,
+                    'body': cons.FRIEND_REQUEST_BODY.format(user_name),
+                    'to_email': friend_email
+                }
+                Util.send_email(notify_data)
+            else:
+                return Response({'data': notification_serializer.errors, 'msg': 'Some error has occurred'}, status=status.HTTP_400_BAD_REQUEST)
+            """ After Notification Created We will Going To Save Serialized Data of Friend Request """
+
             serializer.save()
             return Response({
                 'status': 200,
@@ -88,7 +115,7 @@ class SeeFriendRequestView(generics.ListAPIView):
 class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ManageFriendRequestSerializer
     permission_classes = [IsAuthenticated]
-    # lookup_field = 'pk'
+    """ Here We can Manage Friend Requests Which We have Received From Others"""
 
     def get_queryset(self):
         user_id = self.request.user.id
@@ -118,7 +145,7 @@ class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
         """ Over Riding Get Request to Get Data and return Response"""
         obj1 = self.get_object()
         if obj1 is None:
-            return Response({"msg": "Bad request."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"msg": " 'Sender_id' or 'receiver_id' is Required "}, status=status.HTTP_400_BAD_REQUEST)
         return self.retrieve(request, *args, **kwargs)
 
     def patch(self, request, *args, **kwargs):
@@ -129,7 +156,10 @@ class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
         """
         user_id = self.request.user.id
         obj1 = self.get_object()
-        if obj1 is not None and obj1.is_friend is False:
+        if obj1 is None:
+            return Response({"msg": " 'Sender_id' or 'receiver_id' is Required "}, status=status.HTTP_400_BAD_REQUEST)
+        friend_status = obj1.is_friend
+        if friend_status is False:
             data = request.data
             if 'receiver_id' in data.keys() and int(data['receiver_id']) != int(user_id):
                 return Response({'msg': 'You can Not Accept Your Own Sent Request'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -142,12 +172,39 @@ class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
                 return Response({'msg': "Update 'is_friend' to True to Accept Request"},
                                 status=status.HTTP_400_BAD_REQUEST)
             """ If Request is_friend is False then it will work to make it True """
+            sender_id = data['sender_id']
+            user_id = request.user.id
+            user_name = request.user.user_name
+            friend_details = User.objects.get(id=sender_id)
+            friend_email = friend_details.email
             response = super(ManageFriendRequestView, self).partial_update(request, *args, **kwargs)
+            """ 
+                Making an Serializer for notification For User
+                To make Serializer We are Getting Serializer by importing NotificationSerializer from 
+                notifications.serializers 
+            """
+            notification_data = {'notified_user': sender_id, 'notified_by': user_id,
+                                 'header': cons.FRIEND_REQUEST_HEADER,
+                        'body': cons.ACCEPT_FRIEND_REQUEST_BODY.format(user_name)}
+            notification_serializer = NotificationSerializer(data=notification_data)
+            if notification_serializer.is_valid():
+                notification_serializer.save()
+                """ After Saving Data on notification Table we Will Notify User Through Email"""
+                notify_data = {
+                    'subject': cons.FRIEND_REQUEST_HEADER,
+                    'body': cons.ACCEPT_FRIEND_REQUEST_BODY.format(user_name),
+                    'to_email': friend_email
+                }
+                Util.send_email(notify_data)
+            else:
+                return Response({'data': notification_serializer.errors, 'msg': 'Some error has occurred'}, status=status.HTTP_400_BAD_REQUEST)
+            """ After Notification Created We will Going To Save Serialized Data of Friend Request """
+
             return Response(
                 {"data": response.data, "message": "Request Accepted."},
                 status=response.status_code
             )
-        if obj1 is not None and obj1.is_friend:
+        if obj1.is_friend:
             return Response({"msg": "User is Already Your Friend"}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"msg": "Not Found"}, status=status.HTTP_400_BAD_REQUEST)
