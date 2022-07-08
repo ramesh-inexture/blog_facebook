@@ -85,5 +85,6 @@ class TrendingFeedsSerializer(serializers.ModelSerializer):
         }
 
     """ getting Total Likes On Post using SerializerMethod"""
+    @staticmethod
     def get_likes(self, obj):
         return obj.post_like.filter().count()

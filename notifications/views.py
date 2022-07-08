@@ -1,27 +1,18 @@
-from django.shortcuts import get_object_or_404
-from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from authentication.permissions import IsUserActive
 from rest_framework import generics
 from .serializers import NotificationSerializer
 from .models import Notifications
 
 
 class SeeNotificationsView(generics.ListAPIView):
+    """ This feature is used to see all the notification of the authenticated User """
     serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated, IsUserActive]
 
     def get_queryset(self):
-        data = self.request.data
-        print(data)
-        if 'notified_user' in data.keys():
-            notified_user = data.get('notified_user')
-            queryset = Notifications.objects.filter(notified_user=notified_user).order_by('-created_at')
-            return queryset
-        else:
-            return None
-
-    def get_object(self):
-        queryset = self.get_queryset()
-        if queryset is not None:
-            obj = get_object_or_404()
-        else:
-            return Response({'msg': "'notified_user' is a Required Field "})
-
+        """ getting User_id to get Obj of Notifications For that User and returns queryset and
+        automatically create obj of queryset"""
+        notified_user = self.request.user.id
+        queryset = Notifications.objects.filter(notified_user=notified_user).order_by('-created_at')
+        return queryset

@@ -13,7 +13,7 @@ class MakeFriendRequestSerializer(serializers.ModelSerializer):
     """ Serializer For Make Friend Request """
     class Meta:
         model = Friends
-        fields = ['id', 'sender_id', 'receiver_id', 'is_friend', 'is_blocked']
+        fields = ['id', 'sender_id', 'receiver_id', 'is_friend']
 
 
 class ListFriendRequestSerializer(serializers.ModelSerializer):
@@ -25,6 +25,13 @@ class ListFriendRequestSerializer(serializers.ModelSerializer):
             'id': {'read_only': True},
             'receiver_id': {'read_only': True}
         }
+
+
+class AllFriendSerializer(serializers.ModelSerializer):
+    """ Serializer For getting All Friends"""
+    class Meta:
+        model = User
+        fields = ['id', 'user_name']
 
 
 class ManageFriendRequestSerializer(serializers.ModelSerializer):

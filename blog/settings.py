@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 from pathlib import Path
 import os
 from datetime import timedelta
+
+import cloudinary
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -46,6 +48,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
+    'cloudinary_storage',
     'rest_framework',
     'authentication',
     'rest_framework_simplejwt',
@@ -148,11 +151,13 @@ REST_FRAMEWORK = {
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kolkata'
 
 USE_I18N = True
 
-USE_TZ = True
+USE_TZ = False
+
+USE_L10N = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.0/howto/static-files/
@@ -162,7 +167,13 @@ STATIC_URL = 'static/'
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
+DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 
+CLOUDINARY_STORAGE = {
+  'CLOUD_NAME': os.environ.get('CLOUD_NAME'),
+  'API_KEY': os.environ.get('API_KEY'),
+  'API_SECRET': os.environ.get('API_SECRET')
+}
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
 
@@ -173,6 +184,7 @@ AUTH_USER_MODEL = 'authentication.User'
 
 # Email Configuration
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend" this will be used to receive o/p in console
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_HOST_USER = os.environ.get('EMAIL_USER')
@@ -181,7 +193,7 @@ EMAIL_USE_TLS = True
 
 # JWT Settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=180),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 
     'AUTH_HEADER_TYPES': ('Bearer',),
@@ -198,9 +210,10 @@ SIMPLE_JWT = {
 
 }
 
-PASSWORD_RESET_TIMEOUT = 1800  # 900 Sec = 15 Min
+PASSWORD_RESET_TIMEOUT = 900  # 900 Sec = 15 Min
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8080",
     "http://127.0.0.1:8080",
 ]
+

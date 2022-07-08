@@ -4,6 +4,7 @@ import json
 
 
 class UserRenderer(renderers.JSONRenderer):
+    """ Method render overrides method of class JSONRenderer """
     charset = 'utf-8'
 
     def render(self, data, accepted_media_type=None, renderer_context=None):

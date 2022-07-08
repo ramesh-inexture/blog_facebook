@@ -47,7 +47,7 @@ class User(AbstractBaseUser):
     last_name = models.CharField(max_length=200)
     date_of_birth = models.DateField(null=True)
     user_name = models.CharField(max_length=200, unique=True)
-    profile_picture = models.ImageField(default='default.jpeg', upload_to='profile_picture')
+    profile_picture = models.ImageField(default='default_pxixke', upload_to='profile_picture')
     about_me = models.TextField(max_length=500, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     is_admin = models.BooleanField(default=False)
@@ -77,3 +77,14 @@ class User(AbstractBaseUser):
         "Is the user a member of staff?"
         # Simplest possible answer: All admins are staff
         return self.is_admin
+
+
+class RestrictedUsers(models.Model):
+    """ Model for Restricting Users From Other Users """
+    blocked_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name= "blocked_user")
+    blocked_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name= "blocked_by")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.id} | {self.blocked_by} | blocked | {self.blocked_user}"

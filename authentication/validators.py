@@ -39,7 +39,7 @@ class NumericValidator(object):
 
     def get_help_text(self):
         return _(
-            "Your password must contain at least 1 numeric letter, A-Z."
+            "Your password must contain at least 1 numeric letter, 0-9."
         )
 
 

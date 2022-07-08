@@ -1,35 +1,42 @@
 from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from Friends.utils import check_is_friend
-from authentication.utils import Util
-import blog.constants as cons
-from notifications.serializers import NotificationSerializer
+from authentication.models import RestrictedUsers
+from authentication.permissions import IsUserActive
+from blog.constants import FRIEND_REQUEST_HEADER,FRIEND_REQUEST_BODY,ACCEPT_FRIEND_REQUEST_BODY
+from django.db.models import Q
+from notifications.utils import send_notification
 from .models import User, Friends
 from rest_framework import generics, status
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import IsAuthenticated
 from .serializers import (SearchFriendSerializer, MakeFriendRequestSerializer, ListFriendRequestSerializer,
-                          ManageFriendRequestSerializer)
+                          ManageFriendRequestSerializer, AllFriendSerializer)
 
 
 class SearchFriendView(generics.ListAPIView):
     """ Search Friend Through This APIView """
     permission_classes = [IsAuthenticated]
-    queryset = User.objects.all()
     """ Getting Serializer to Show Data When User Searches Some Other User """
     serializer_class = SearchFriendSerializer
     filter_backends = (SearchFilter, OrderingFilter)
     search_fields = ['user_name', 'first_name', 'last_name']
 
+    def get_queryset(self):
+        user = self.request.user.id
+        queryset = User.objects.filter(is_active=True).exclude(id=user)
+        return queryset
+
 
 class MakeFriendRequestView(generics.CreateAPIView):
     """ Creating an Endpoint for sending Friend Request to another user"""
     serializer_class = MakeFriendRequestSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsUserActive]
 
     def create(self, request, *args, **kwargs):
-        """ Overriding create method to create custom request for add friend endpoint """
+        """Overriding create method to create custom request for add friend endpoint """
         sender_id = request.user.id
 
         """Getting Data with data fields (mainly receiver_id) from users to create request 
@@ -41,60 +48,66 @@ class MakeFriendRequestView(generics.CreateAPIView):
         """ checking that sender_id and receiver_id are same or not if same then raise error or return Response"""
         if str(sender_id) == str(receiver_id):
             return Response({'msg': 'sender_id and receiver_id can not be same'})
+        receiver_data = User.objects.get(id=receiver_id)
+        is_friend_user_active = receiver_data.is_active
+        blocked_by_friend_user = RestrictedUsers.objects.filter(blocked_by=receiver_id, blocked_user=sender_id)
+        if is_friend_user_active and not blocked_by_friend_user:
+            friend_request = check_is_friend(sender_id, receiver_id)
+            if friend_request:
+                """checking that sender and receiver are friends or sender_id have sent the request to receiver_id
+                    or sender_id have pending request from receiver_id for restricting sending request again """
+                check_for_friends = friend_request[0]
+                sender = friend_request[1]
+                """ Conditions for different different scenarios of friend request and their status """
+                if check_for_friends :
+                    return Response({'msg': f'receiver_id {receiver_id} is Already a Friend'}, status=status.HTTP_400_BAD_REQUEST)
+                elif not check_for_friends and sender == int(sender_id):
+                    return Response({'msg': 'You have Already sent a friend request'}, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    return Response({'msg': 'You have A Pending request from this User'}, status=status.HTTP_400_BAD_REQUEST)
 
-        """checking that sender and receiver are friends or sender_id have sent the request to receiver_id
-         or sender_id have pending request from receiver_id for restricting sending request again """
-        friend_request = check_is_friend(sender_id, receiver_id)
-        if friend_request is not None:
-            check_for_friends = friend_request[0]
-            sender = friend_request[1]
-            """ Conditions for different different scenarios of friend request and their status """
-            if check_for_friends is True:
-                return Response({'msg': f'receiver_id {receiver_id} is Already a Friend'}, status=status.HTTP_400_BAD_REQUEST)
-            elif check_for_friends is False and sender == int(sender_id):
-                return Response({'msg': 'You have Already sent a friend request'}, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                return Response({'msg': 'You have A Pending request from this User'}, status=status.HTTP_400_BAD_REQUEST)
+            serializer = self.serializer_class(data=data)
+            if serializer.is_valid():
+                """ 
+                    Making an Serializer for notification For User
+                    To make Serializer We are Getting Serializer by importing NotificationSerializer from 
+                    notifications.serializers 
+                """
+                user_name = request.user.user_name
+                obj = User.objects.get(id=receiver_id)
+                self.check_object_permissions(self.request, obj)
+                friend_email = obj.email
+                notification_data = {
+                        'notified_user': receiver_id,
+                        'notified_by': sender_id,
+                        'user_name': user_name,
+                        'notification_receiver_email': friend_email,
+                        'header_message': FRIEND_REQUEST_HEADER,
+                        'body_message': FRIEND_REQUEST_BODY.format(user_name),
+                        }
+                is_send, data = send_notification(**notification_data)
+                if not is_send:
+                    return Response(
+                        {'data': data, 'msg': 'Some error has occurred'},
+                        status=status.HTTP_400_BAD_REQUEST)
+                """ After Notification Created We will Going To Save Serialized Data of Friend Request """
 
-        serializer = self.serializer_class(data=data)
-        if serializer.is_valid():
-            """ 
-                Making an Serializer for notification For User
-                To make Serializer We are Getting Serializer by importing NotificationSerializer from 
-                notifications.serializers 
-            """
-            user_name = request.user.user_name
-            obj = User.objects.get(id=receiver_id)
-            friend_email = obj.email
-            notification_data = {'notified_user': receiver_id, 'notified_by': sender_id, 'header': cons.FRIEND_REQUEST_HEADER,
-                        'body': cons.FRIEND_REQUEST_BODY.format(user_name)}
-            notification_serializer = NotificationSerializer(data=notification_data)
-            if notification_serializer.is_valid():
-                notification_serializer.save()
-                """ After Saving Data on notification Table we Will Notify User Through Email"""
-                notify_data = {
-                    'subject': cons.FRIEND_REQUEST_HEADER,
-                    'body': cons.FRIEND_REQUEST_BODY.format(user_name),
-                    'to_email': friend_email
-                }
-                Util.send_email(notify_data)
-            else:
-                return Response({'data': notification_serializer.errors, 'msg': 'Some error has occurred'}, status=status.HTTP_400_BAD_REQUEST)
-            """ After Notification Created We will Going To Save Serialized Data of Friend Request """
+                serializer.save()
+                return Response({
+                    'status': 200,
+                    'message': 'Friend Request created',
+                    'data': serializer.data
+                })
+            return Response({'data': serializer.errors, 'msg': 'Some error has occurred'})
 
-            serializer.save()
-            return Response({
-                'status': 200,
-                'message': 'Friend Request created',
-                'data': serializer.data
-            })
-        return Response({'data': serializer.errors, 'msg': 'Some error has occurred'})
+        else:
+            raise ValidationError({"ERROR": "Friend User is not Active Or friend user Blocked you"})
 
 
 class SeeFriendRequestView(generics.ListAPIView):
     """ LIST View Of All Pending Friend Requests """
     serializer_class = ListFriendRequestSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsUserActive]
     pagination_class = PageNumberPagination
 
     def get_queryset(self):
@@ -112,6 +125,36 @@ class SeeFriendRequestView(generics.ListAPIView):
             return Response(serializer.data)
 
 
+class SeeFriendsListAPIView(generics.ListAPIView):
+    """ List View Of All Pending Friend Requests """
+    serializer_class = ListFriendRequestSerializer
+    permission_classes = [IsAuthenticated, IsUserActive]
+    pagination_class = PageNumberPagination
+
+    def get_queryset(self):
+        user_id = self.request.user.id
+        queryset = Friends.objects.filter(Q(receiver_id=user_id) | Q(sender_id=user_id), is_friend=True)
+        return queryset
+
+    def get(self, request, *args, **kwargs):
+        friend_obj = self.get_queryset()
+        user_id = request.user.id
+        friends_ids = []
+        for obj in friend_obj:
+            if obj.sender_id_id != user_id:
+                friends_ids.append(obj.sender_id_id)
+            else:
+                friends_ids.append(obj.receiver_id_id)
+        users = User.objects.only('id', 'user_name').filter(id__in=friends_ids)
+        """ note: here we can even use serializer without writing instance=user
+            ex.: serializer = AllFriendSerializer(users, many=True)"""
+
+        serializer = AllFriendSerializer(instance=users, many=True)
+        """ Note: serializer.is_valid(raise_exception=True)  --> here we were getting some error 
+        when we do raise_exception=True"""
+        return Response({'data': serializer.data})
+
+
 class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ManageFriendRequestSerializer
     permission_classes = [IsAuthenticated]
@@ -120,12 +163,12 @@ class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         user_id = self.request.user.id
         data = self.request.data
-        if 'sender_id' in data.keys() and int(data['sender_id']) != int(user_id):
+        if 'sender_id' in data and int(data['sender_id']) != int(user_id):
             sender_id = data.get('sender_id')
             receiver_id = user_id
             queryset = Friends.objects.filter(receiver_id=receiver_id, sender_id=sender_id)
             return queryset
-        elif 'receiver_id' in data.keys() and int(data['receiver_id']) != int(user_id):
+        elif 'receiver_id' in data and int(data['receiver_id']) != int(user_id):
             receiver_id = data.get('receiver_id')
             sender_id = user_id
             queryset = Friends.objects.filter(receiver_id=receiver_id, sender_id=sender_id)
@@ -136,39 +179,39 @@ class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
     def get_object(self):
         """ getting query_set and creating Obj of user for  managing Friend Requests """
         queryset = self.get_queryset()
-        if queryset is None:
+        if not queryset:
             return None
         obj = get_object_or_404(queryset)
         return obj
 
     def get(self, request, *args, **kwargs):
         """ Over Riding Get Request to Get Data and return Response"""
-        obj1 = self.get_object()
-        if obj1 is None:
+        friends_obj = self.get_object()
+        if not friends_obj:
             return Response({"msg": " 'Sender_id' or 'receiver_id' is Required "}, status=status.HTTP_400_BAD_REQUEST)
         return self.retrieve(request, *args, **kwargs)
 
     def patch(self, request, *args, **kwargs):
         """
         For Accepting Friend Request checking that Friend Request is Accepted or not
-        if is_friend Status is Already True means receiver is already a friend and we can not change Friend status
+        if is_friend Status is Already True means receiver is already a friend, and we can not change Friend status
         we can only delete that friend
         """
         user_id = self.request.user.id
-        obj1 = self.get_object()
-        if obj1 is None:
+        friends_obj = self.get_object()
+        if not friends_obj :
             return Response({"msg": " 'Sender_id' or 'receiver_id' is Required "}, status=status.HTTP_400_BAD_REQUEST)
-        friend_status = obj1.is_friend
-        if friend_status is False:
+        friend_status = friends_obj.is_friend
+        if not friend_status:
             data = request.data
-            if 'receiver_id' in data.keys() and int(data['receiver_id']) != int(user_id):
+            if 'receiver_id' in data and int(data['receiver_id']) != int(user_id): # data.keys removed
                 return Response({'msg': 'You can Not Accept Your Own Sent Request'}, status=status.HTTP_401_UNAUTHORIZED)
-            if 'is_friend' not in data.keys():
+            if 'is_friend' not in data:   # data.keys removed
                 return Response({'msg': " 'is_friend' is required to Accept Friend Request"},
                                 status=status.HTTP_400_BAD_REQUEST)
             status_of_friend = request.data['is_friend']
             status_of_friend = status_of_friend.capitalize()
-            if str(obj1.is_friend) == str(status_of_friend):
+            if str(friends_obj.is_friend) == str(status_of_friend):
                 return Response({'msg': "Update 'is_friend' to True to Accept Request"},
                                 status=status.HTTP_400_BAD_REQUEST)
             """ If Request is_friend is False then it will work to make it True """
@@ -183,28 +226,24 @@ class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
                 To make Serializer We are Getting Serializer by importing NotificationSerializer from 
                 notifications.serializers 
             """
-            notification_data = {'notified_user': sender_id, 'notified_by': user_id,
-                                 'header': cons.FRIEND_REQUEST_HEADER,
-                        'body': cons.ACCEPT_FRIEND_REQUEST_BODY.format(user_name)}
-            notification_serializer = NotificationSerializer(data=notification_data)
-            if notification_serializer.is_valid():
-                notification_serializer.save()
-                """ After Saving Data on notification Table we Will Notify User Through Email"""
-                notify_data = {
-                    'subject': cons.FRIEND_REQUEST_HEADER,
-                    'body': cons.ACCEPT_FRIEND_REQUEST_BODY.format(user_name),
-                    'to_email': friend_email
-                }
-                Util.send_email(notify_data)
-            else:
-                return Response({'data': notification_serializer.errors, 'msg': 'Some error has occurred'}, status=status.HTTP_400_BAD_REQUEST)
+            notification_data = {
+                    'notified_user': sender_id,
+                    'notified_by': user_id,
+                    'user_name': user_name,
+                    'notification_receiver_email': friend_email,
+                    'header_message': FRIEND_REQUEST_HEADER,
+                    'body_message': ACCEPT_FRIEND_REQUEST_BODY.format(user_name),
+                    }
+            is_send, data = send_notification(**notification_data)
+            if not is_send:
+                return Response({'data': data, 'msg': 'Some error has occurred'}, status=status.HTTP_400_BAD_REQUEST)
             """ After Notification Created We will Going To Save Serialized Data of Friend Request """
 
             return Response(
                 {"data": response.data, "message": "Request Accepted."},
                 status=response.status_code
             )
-        if obj1.is_friend:
+        if friends_obj.is_friend:
             return Response({"msg": "User is Already Your Friend"}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"msg": "Not Found"}, status=status.HTTP_400_BAD_REQUEST)

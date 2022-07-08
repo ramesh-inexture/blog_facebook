@@ -10,8 +10,6 @@ class Friends(models.Model):
     receiver_id = models.ForeignKey(User, related_name='receiver', on_delete=models.CASCADE)
     """ It will Check that Users are Friends or Not"""
     is_friend = models.BooleanField(default=False)
-    """ To check User is Blocked Or not we use is_active Boolean Field """
-    is_blocked = models.BooleanField(default=False)
     created_on = models.DateTimeField(auto_now_add=True)
     updated_on = models.DateTimeField(auto_now=True)
 

@@ -1,8 +1,9 @@
 LIKE_HEADER = 'Post Like'
-LIKE_BODY = '{} Liked your Post'
+LIKE_BODY = '{} Liked your Post titled {} on {}'
 COMMENT_HEADER = 'Post Comment'
-COMMENT_BODY = '{} has Commented On your Post'
+COMMENT_BODY = '{} Commented On Post titled {} on {}: "{}"'
 FRIEND_REQUEST_HEADER = 'Friend Request'
 FRIEND_REQUEST_BODY = '{} had Send you A Friend Request'
 ACCEPT_FRIEND_REQUEST_BODY = '{} had Accepted your Friend Request'
-
+BLOCK_USER = "User Blocked successfully."
+UNBLOCK_USER = "User UnBlocked successfully."

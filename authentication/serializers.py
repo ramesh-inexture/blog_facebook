@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from authentication.models import User
+from authentication.models import User, RestrictedUsers
 from django.utils.encoding import (smart_str, force_bytes, DjangoUnicodeDecodeError)
 from django.utils.http import (urlsafe_base64_encode, urlsafe_base64_decode)
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
@@ -179,3 +179,23 @@ class UserChangePasswordSerializer(serializers.Serializer):
         user.set_password(password)
         user.save()
         return attrs
+
+
+class BlockUserSerializer(serializers.ModelSerializer):
+    """ Serializer For Blocking User From User Table BY Admin """
+    is_active = serializers.BooleanField(required=True, allow_null=False)
+
+    class Meta:
+        model = User
+        fields = ['id','email','is_active']
+        extra_kwargs = {
+            'id': {'read_only': True},
+            'email': {'read_only': True}
+        }
+
+
+class BlockUserbyUserSerializer(serializers.ModelSerializer):
+    """ Serializer of User Blocks Other Users """
+    class Meta:
+        model = RestrictedUsers
+        fields = ['id', 'blocked_by', 'blocked_user']
