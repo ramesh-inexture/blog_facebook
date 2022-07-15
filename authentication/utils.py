@@ -1,6 +1,18 @@
 from django.core.mail import EmailMessage
 import os
 from Friends.models import Friends
+from rest_framework_simplejwt.tokens import RefreshToken
+
+
+def get_tokens_for_user(user):
+    """ Generate Token """
+
+    refresh = RefreshToken.for_user(user)
+
+    return {
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    }
 
 
 class Util:

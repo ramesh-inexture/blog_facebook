@@ -1,9 +1,9 @@
 from rest_framework import serializers
-from authentication.models import User, RestrictedUsers
+from .models import User, RestrictedUsers
 from django.utils.encoding import (smart_str, force_bytes, DjangoUnicodeDecodeError)
 from django.utils.http import (urlsafe_base64_encode, urlsafe_base64_decode)
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
-from authentication.utils import Util
+from .utils import Util
 from dotenv import load_dotenv
 import os
 import django.contrib.auth.password_validation as validators

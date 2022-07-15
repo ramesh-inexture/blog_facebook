@@ -4,7 +4,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework import generics, status
-from blog.constants import LIKE_HEADER,LIKE_BODY, COMMENT_HEADER, COMMENT_BODY
+from blog.constants import LIKE_HEADER, LIKE_BODY, COMMENT_HEADER, COMMENT_BODY
 from authentication.models import RestrictedUsers
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -28,14 +28,15 @@ class PostCreateAPIView(APIView):
     def post(self, request, format=None):
         """ getting user_id of Authenticated User to Create Post """
         posted_by = request.user.id
-        request.data['posted_by'] = posted_by
+        data = request.data.copy()
+        data['posted_by'] = posted_by
 
         """ passing user_id as posted_by using PostModelSerializer and then check for Valid Serializer"""
-        serializer = PostModelSerializer(data=request.data, context={'posted_by': posted_by})
+        serializer = PostModelSerializer(data=data, context={'posted_by': posted_by})
         if serializer.is_valid(raise_exception=True):
             serializer.save()
         return Response({'data': serializer.data, 'msg': 'Post Created Successfully'},
-                        status=status.HTTP_200_OK)
+                        status=status.HTTP_201_CREATED)
 
 
 class UploadFileAPIView(APIView):
@@ -72,29 +73,24 @@ class PostLists(generics.ListAPIView):
     pagination_class = PageNumberPagination
 
     """ getting all Objects of the post through get_queryset """
-    def get_queryset(self):
-        posted_by = self.request.data.get('posted_by')
-        queryset = Posts.objects.filter(posted_by=posted_by)
+    def get_queryset(self, pk):
+        queryset = Posts.objects.filter(posted_by=pk)
         return queryset
 
     """ getting all data of Post from posts and uploaded File through posted_by id """
-    def get(self, request, *args, **kwargs):
-        posted_by = self.request.data.get('posted_by')
+    def get(self, request, pk, *args, **kwargs):
+        posted_by = pk
         user_id = request.user.id
-        if not posted_by:
-            return Response(
-                {'msg': " 'posted_by' id not provide"},
-                status=status.HTTP_400_BAD_REQUEST
-                )
+        print(request)
         """ checking Provided User_id is Valid or not"""
         if not User.objects.filter(id=posted_by).exists():
             return Response({
                 'msg': 'User Not Exists'
             })
-        post_queryset = self.get_queryset()
+        post_queryset = self.get_queryset(pk)
 
         if not post_queryset:
-            return ValidationError({"Error": "No Data Found"})
+            raise ValidationError({"Error": "No Data Found"})
 
         post_owner = posted_by
         user = request.user.id
@@ -104,7 +100,7 @@ class PostLists(generics.ListAPIView):
          are Friends or not if Both are Not Friends Then user can only see the Post owner's Public Posts"""
         if is_post_owner_active and not blocked_by_post_owner:
             if user_id != post_owner:
-                is_friends = check_is_friend(post_owner,user)
+                is_friends = check_is_friend(post_owner, user)
                 if not is_friends or not is_friends[0]:
                     public_posts = post_queryset.filter(is_public=True)
                     if public_posts:
