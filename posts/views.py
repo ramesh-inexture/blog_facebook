@@ -72,29 +72,24 @@ class PostLists(generics.ListAPIView):
     pagination_class = PageNumberPagination
 
     """ getting all Objects of the post through get_queryset """
-    def get_queryset(self):
-        posted_by = self.request.data.get('posted_by')
-        queryset = Posts.objects.filter(posted_by=posted_by)
+    def get_queryset(self, pk):
+        queryset = Posts.objects.filter(posted_by=pk)
         return queryset
 
     """ getting all data of Post from posts and uploaded File through posted_by id """
-    def get(self, request, *args, **kwargs):
-        posted_by = self.request.data.get('posted_by')
+    def get(self, request, pk, *args, **kwargs):
+        posted_by = pk
         user_id = request.user.id
-        if not posted_by:
-            return Response(
-                {'msg': " 'posted_by' id not provide"},
-                status=status.HTTP_400_BAD_REQUEST
-                )
+        print(request)
         """ checking Provided User_id is Valid or not"""
         if not User.objects.filter(id=posted_by).exists():
             return Response({
                 'msg': 'User Not Exists'
             })
-        post_queryset = self.get_queryset()
+        post_queryset = self.get_queryset(pk)
 
         if not post_queryset:
-            return ValidationError({"Error": "No Data Found"})
+            raise ValidationError({"Error": "No Data Found"})
 
         post_owner = posted_by
         user = request.user.id
@@ -104,7 +99,7 @@ class PostLists(generics.ListAPIView):
          are Friends or not if Both are Not Friends Then user can only see the Post owner's Public Posts"""
         if is_post_owner_active and not blocked_by_post_owner:
             if user_id != post_owner:
-                is_friends = check_is_friend(post_owner,user)
+                is_friends = check_is_friend(post_owner, user)
                 if not is_friends or not is_friends[0]:
                     public_posts = post_queryset.filter(is_public=True)
                     if public_posts:
@@ -403,16 +398,16 @@ class RetrieveDestroyCommentAPIView(generics.RetrieveDestroyAPIView):
         """ getting query_set and creating Obj of user for  managing Comments """
         user_id = self.request.user.id
         queryset = self.get_queryset()
-        if not queryset :
+        if not queryset:
             return None
         comment_obj = get_object_or_404(queryset)
         commented_by = comment_obj.commented_by.id
-        if user_id != commented_by :
+        if user_id != commented_by:
             self.check_object_permissions(self.request, comment_obj.post_id.posted_by)
         return comment_obj
 
     def get(self, request, *args, **kwargs):
-        """ Overiding get method to check whether provided data is valid or not"""
+        """ Overriding get method to check whether provided data is valid or not"""
         comment_obj = self.get_object()
         data = self.request.data
         if 'post_id' and 'id' not in data:
