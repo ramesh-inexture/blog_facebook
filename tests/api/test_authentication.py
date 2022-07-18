@@ -1,6 +1,6 @@
 import pytest
 
-"""
+
 @pytest.mark.django_db
 def test_register_user_fail(client):
     payload = {
@@ -164,4 +164,3 @@ def test_block_user_by_user_success(auth_user_client, second_user):
     data = response.data
     assert response.status_code == 200
     assert data["msg"] == "User Blocked successfully."
-"""

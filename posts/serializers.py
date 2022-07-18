@@ -18,6 +18,7 @@ class PostModelSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'overview', 'description', 'category_id', 'is_public', 'posted_by']
 
 
+
 class PostSerializer(serializers.ModelSerializer):
     """ serializer for listing posts with data and files """
     posts_files = UploadFilesSerializer(many=True)

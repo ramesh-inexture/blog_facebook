@@ -4,7 +4,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework import generics, status
-from blog.constants import LIKE_HEADER, LIKE_BODY, COMMENT_HEADER, COMMENT_BODY
+from blog.constants import LIKE_HEADER,LIKE_BODY, COMMENT_HEADER, COMMENT_BODY
 from authentication.models import RestrictedUsers
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -30,13 +30,12 @@ class PostCreateAPIView(APIView):
         posted_by = request.user.id
         data = request.data.copy()
         data['posted_by'] = posted_by
-
         """ passing user_id as posted_by using PostModelSerializer and then check for Valid Serializer"""
         serializer = PostModelSerializer(data=data, context={'posted_by': posted_by})
         if serializer.is_valid(raise_exception=True):
             serializer.save()
         return Response({'data': serializer.data, 'msg': 'Post Created Successfully'},
-                        status=status.HTTP_201_CREATED)
+                        status=status.HTTP_200_OK)
 
 
 class UploadFileAPIView(APIView):
@@ -81,17 +80,14 @@ class PostLists(generics.ListAPIView):
     def get(self, request, pk, *args, **kwargs):
         posted_by = pk
         user_id = request.user.id
-        print(request)
         """ checking Provided User_id is Valid or not"""
         if not User.objects.filter(id=posted_by).exists():
             return Response({
                 'msg': 'User Not Exists'
             })
         post_queryset = self.get_queryset(pk)
-
         if not post_queryset:
             raise ValidationError({"Error": "No Data Found"})
-
         post_owner = posted_by
         user = request.user.id
         is_post_owner_active = User.objects.get(id=posted_by).is_active
@@ -130,8 +126,8 @@ class UpdateDeletePosts(generics.RetrieveUpdateDestroyAPIView):
 
     def get_object(self):
         """ getting post-id and creating Obj of user for checking condition IsOwner or not"""
-        queryset = self.get_queryset()
         post_id = self.request.data.get('post_id')
+        queryset = self.get_queryset()
         post_obj = get_object_or_404(queryset, id=post_id)
         """ after creating Object check that permission is provided or not for that user Object"""
         self.check_object_permissions(self.request, post_obj.posted_by)
@@ -192,53 +188,48 @@ class UpdateDeleteFiles(generics.RetrieveUpdateDestroyAPIView):
         )
 
 
-class SinglePostListView(generics.ListAPIView):
+class SinglePostListView(generics.RetrieveAPIView):
     """
     Listing Post through this APIView after Authenticating that user it will list out
     post data by provided post_id
     """
-    permission_classes = [IsAuthenticated, IsUserActive]
+    permission_classes = [IsAuthenticated]
     serializer_class = PostSerializer
+    queryset = Posts.objects.all()
 
-    def get_queryset(self):
-        """ getting all Objects of the post through get_queryset """
-        post_id = self.request.data.get('post_id')
-        queryset = Posts.objects.filter(id=post_id)
-        return queryset
-
-    def get(self, request, *args, **kwargs):
+    def get(self, request, pk, *args, **kwargs):
         """ getting all data of Post from posts and uploaded File through post_id """
-        post_id = self.request.data.get('post_id')
-
+        post_id = pk
         """if post_id is not Provided then this will show message """
-        if not post_id :
+        if not post_id:
             return Response(
                 {'post_id': 'Not provide'},
                 status=status.HTTP_400_BAD_REQUEST
                 )
         """ checking Provided post_id is Valid or not"""
-        post_queryset = self.get_queryset()
-        if not post_queryset:
+        posts_obj = self.get_queryset()[0]
+        if not posts_obj:
             return Response({
                 'msg': 'Data Not Found'
             }, status=status.HTTP_404_NOT_FOUND)
 
         """Creating posts_obj to check active status of post owner and also checking if post is not public
          then they should have to be friend with user"""
-        posts_obj = get_object_or_404(post_queryset)
-        post_owner = posts_obj.posted_by_id
+        # posts_obj = get_object_or_404(post_queryset)
+        # po
+        post_owner = posts_obj.posted_by.id
         user = request.user.id
         is_post_owner_active = posts_obj.posted_by.is_active
         blocked_by_post_owner = RestrictedUsers.objects.filter(blocked_by=post_owner, blocked_user=user)
         if is_post_owner_active and not blocked_by_post_owner:
             is_friends = check_is_friend(post_owner,user)
             if not posts_obj.is_public:
-
-                if is_friends:
-                    if not is_friends[0]:
+                if post_owner != user:
+                    if is_friends :
+                        if not is_friends[0]:
+                            raise ValidationError({"Error": "Only Friends Can See Posts"})
+                    else:
                         raise ValidationError({"Error": "Only Friends Can See Posts"})
-                else:
-                    raise ValidationError({"Error": "Only Friends Can See Posts"})
 
                 """ if valid post_id is Provided and if data is available then it will return that data  """
                 response = super(SinglePostListView, self).get(request, *args, **kwargs)
@@ -354,7 +345,7 @@ class CommentOnPostView(generics.CreateAPIView):
                 notifications.serializers 
                 """
                 serializer.save()
-                recent_comment_obj = Comments.objects.filter(post_id=post_id,commented_by=commented_by).first()
+                recent_comment_obj = Comments.objects.filter(post_id=post_id, commented_by=commented_by).first()
                 commented_at_time = DT.datetime.strftime(recent_comment_obj.created_at,"%Y-%m-%d %H:%M:%S")
                 notification_data = {
                         'notified_user': post_owner,
@@ -362,12 +353,14 @@ class CommentOnPostView(generics.CreateAPIView):
                         'user_name': user_name,
                         'notification_receiver_email': post_owner_email,
                         'header_message': COMMENT_HEADER,
-                        'body_message': COMMENT_BODY.format(user_name,post_obj.title, commented_at_time, data['comment'])   ,
-                    }
+                        'body_message': COMMENT_BODY.format(user_name,post_obj.title, commented_at_time,
+                                                            data['comment']),
+                }
                 is_send, data = send_notification(**notification_data)
 
                 if not is_send:
-                    return Response({'data': data, 'msg': 'Some error has occurred'}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({'data': data, 'msg': 'Some error has occurred'},
+                                    status=status.HTTP_400_BAD_REQUEST)
                 """ After Notification Created We will Going To Save Serialized Data of Post Comment """
                 return Response({
                     'status': 200,
@@ -399,16 +392,16 @@ class RetrieveDestroyCommentAPIView(generics.RetrieveDestroyAPIView):
         """ getting query_set and creating Obj of user for  managing Comments """
         user_id = self.request.user.id
         queryset = self.get_queryset()
-        if not queryset :
+        if not queryset:
             return None
         comment_obj = get_object_or_404(queryset)
         commented_by = comment_obj.commented_by.id
-        if user_id != commented_by :
+        if user_id != commented_by:
             self.check_object_permissions(self.request, comment_obj.post_id.posted_by)
         return comment_obj
 
     def get(self, request, *args, **kwargs):
-        """ Overiding get method to check whether provided data is valid or not"""
+        """ Overriding get method to check whether provided data is valid or not"""
         comment_obj = self.get_object()
         data = self.request.data
         if 'post_id' and 'id' not in data:
