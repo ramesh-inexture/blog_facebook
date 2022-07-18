@@ -2,7 +2,6 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.contrib.auth import authenticate
 from blog.constants import BLOCK_USER, UNBLOCK_USER
@@ -17,18 +16,7 @@ from authentication.serializers import (UserRegistrationSerializer,
                                         UserLoginSerializer, SendPasswordResetEmailSerializer,
                                         UserPasswordResetSerializer, UserProfileSerializer,
                                         UserChangePasswordSerializer, BlockUserSerializer, BlockUserbyUserSerializer)
-from .utils import get_friend_object
-
-
-def get_tokens_for_user(user):
-    """ Generate Token """
-
-    refresh = RefreshToken.for_user(user)
-
-    return {
-        'refresh': str(refresh),
-        'access': str(refresh.access_token),
-    }
+from .utils import get_friend_object, get_tokens_for_user
 
 
 class UserRegistrationView(APIView):

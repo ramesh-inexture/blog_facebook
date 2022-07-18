@@ -15,7 +15,7 @@ class PostCategories(models.Model):
 class Posts(models.Model):
     """ Post model for Posting Blog Posts"""
     posted_by = models.ForeignKey(User, on_delete=models.CASCADE)
-    title = models.CharField(max_length=300)
+    title = models.CharField(max_length=300, blank=False)
     is_public = models.BooleanField(default=False)
     overview = models.TextField(blank=True)
     description = models.TextField(blank=True)
