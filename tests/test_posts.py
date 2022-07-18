@@ -28,14 +28,14 @@ def test_list_posts_success(client, auth_user_client, user):
     user_id = user.id
     print(user_id)
     post_payload = {
-        "title": "first post",
         "posted_by": user
     }
     post = Posts.objects.create(**post_payload)
+    print(post)
     response = auth_user_client.get(f"/api/user/post/post-list/{user_id}/")
     data = response.data
     print(data)
-    assert response.status_code == 200
+    assert response.status_code == 300
 
 
 """
