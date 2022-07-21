@@ -4,7 +4,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework import generics, status
-from blog.constants import LIKE_HEADER,LIKE_BODY, COMMENT_HEADER, COMMENT_BODY
+from blog.constants import LIKE_HEADER, LIKE_BODY, COMMENT_HEADER, COMMENT_BODY
 from authentication.models import RestrictedUsers
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -15,7 +15,7 @@ from authentication.permissions import IsOwner, IsOwnerOrIsAdmin, IsUserActive
 from .serializers import (PostSerializer, UploadFilesSerializer, PostModelSerializer, UpdateDeleteFilesSerializer,
                           UpdateDeletePostSerializer, LikePostSerializer, CommentOnPostSerializer,
                           TrendingFeedsSerializer)
-import datetime as DT
+import datetime as dt
 
 
 class PostCreateAPIView(APIView):
@@ -25,7 +25,7 @@ class PostCreateAPIView(APIView):
     """
     permission_classes = [IsAuthenticated, IsUserActive]
 
-    def post(self, request, format=None):
+    def post(self, request):
         """ getting user_id of Authenticated User to Create Post """
         posted_by = request.user.id
         data = request.data.copy()
@@ -45,14 +45,14 @@ class UploadFileAPIView(APIView):
     """
     permission_classes = [IsAuthenticated, IsOwner]
 
-    def post(self, request, format=None):
+    def post(self, request):
         """ getting user_id of Authenticated User to Create Post
          serializing File data and check if that is valid or not """
-        data=request.data
+        data = request.data
         if 'post_id' in data:
-            id = data['post_id']
-            Post_obj = get_object_or_404(Posts, id=id)
-            self.check_object_permissions(self.request, Post_obj.posted_by)
+            post_id = data['post_id']
+            post_obj = get_object_or_404(Posts, id=post_id)
+            self.check_object_permissions(self.request, post_obj.posted_by)
         serializer = UploadFilesSerializer(data=data)
         if serializer.is_valid(raise_exception=True):
             """ here if Serializer is Valid then it Will be saved by serializer.save  else 
@@ -222,10 +222,10 @@ class SinglePostListView(generics.RetrieveAPIView):
         is_post_owner_active = posts_obj.posted_by.is_active
         blocked_by_post_owner = RestrictedUsers.objects.filter(blocked_by=post_owner, blocked_user=user)
         if is_post_owner_active and not blocked_by_post_owner:
-            is_friends = check_is_friend(post_owner,user)
+            is_friends = check_is_friend(post_owner, user)
             if not posts_obj.is_public:
                 if post_owner != user:
-                    if is_friends :
+                    if is_friends:
                         if not is_friends[0]:
                             raise ValidationError({"Error": "Only Friends Can See Posts"})
                     else:
@@ -250,10 +250,10 @@ class LikePostView(generics.CreateAPIView):
         """ Overriding create method to create custom request for Like Post endpoint """
         liked_by = request.user.id
         """Getting Data with data fields (mainly Post_id) from users to Like the post of given Post id"""
-        data = request.data
+        data = request.data.copy()
 
         if 'post_id' not in data.keys():
-            return Response({"msg": " 'post_id' is Required to Like Post"}, status=status.HTTP_406_NOT_ACCEPTABLE)
+            return Response({"Error": " 'post_id' is Required to Like Post"}, status=status.HTTP_406_NOT_ACCEPTABLE)
         post_id = data['post_id']
         data['liked_by'] = liked_by
 
@@ -279,20 +279,21 @@ class LikePostView(generics.CreateAPIView):
             if serializer.is_valid():
                 """ Sending Notification through send_notification function Imported From notifications.utils"""
                 serializer.save()
-                recent_like_obj = Likes.objects.get(post_id=post_id,liked_by=liked_by)
+                recent_like_obj = Likes.objects.get(post_id=post_id, liked_by=liked_by)
                 # print(recent_like_obj.created_at)
-                liked_at_time = DT.datetime.strftime(recent_like_obj.created_at,"%Y-%m-%d %H:%M:%S")
+                liked_at_time = dt.datetime.strftime(recent_like_obj.created_at, "%Y-%m-%d %H:%M:%S")
                 notification_data = {
                     'notified_user': post_owner,
                     'notified_by': liked_by,
                     'user_name': user_name,
                     'notification_receiver_email': post_owner_email,
                     'header_message': LIKE_HEADER,
-                    'body_message': LIKE_BODY.format(user_name,post_obj.title,liked_at_time),
+                    'body_message': LIKE_BODY.format(user=user_name, title=post_obj.title, create_date=liked_at_time),
                     }
                 is_send, data = send_notification(**notification_data)
                 if not is_send:
-                    return Response({'data': data, 'msg': 'Some error has occurred'}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({'data': data, 'msg': 'Some error has occurred'}, 
+                                    status=status.HTTP_400_BAD_REQUEST)
                 """ After Notification Created We will Going return Response of Serialized Data of Post Like """
                 return Response({
                             'status': 200,
@@ -316,7 +317,7 @@ class CommentOnPostView(generics.CreateAPIView):
         commented_by = request.user.id
         user_name = request.user.user_name
         """Getting Data with data fields (mainly Post_id) from users to Comment on the post of given Post id"""
-        data = request.data
+        data = request.data.copy()
         if 'post_id' not in data.keys():
             return Response({"msg": " 'post_id' is Required to Make Comment On a Post"},
                             status=status.HTTP_406_NOT_ACCEPTABLE)
@@ -326,19 +327,19 @@ class CommentOnPostView(generics.CreateAPIView):
         post_owner = post_obj.posted_by.id
         post_owner_email = post_obj.posted_by.email
         """ Checking Friend Status of User And Post Owner """
-        friend_status = None
         is_blocked_by_post_owner = RestrictedUsers.objects.filter(blocked_by=post_owner, blocked_user=commented_by)
 
         if post_obj.posted_by.is_active and not is_blocked_by_post_owner:
             if str(commented_by) != str(post_owner) and not post_obj.is_public:
                 friend_status = check_is_friend(commented_by, post_owner)
                 if not friend_status or not friend_status[0]:
-                    return Response({'msg': 'Only Friends Can Comment on This Post'}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({'msg': 'Only Friends Can Comment on This Post'}, 
+                                    status=status.HTTP_400_BAD_REQUEST)
 
             """ If User is a friend Of Post_owner who have uploaded post only then he/she should be able to 
             comment on that Post """
             serializer = self.serializer_class(data=data)
-            if serializer.is_valid():
+            if serializer.is_valid(raise_exception=True):
                 """ 
                 Making an Serializer for notification For User
                 To make Serializer We are Getting Serializer by importing NotificationSerializer from 
@@ -346,20 +347,20 @@ class CommentOnPostView(generics.CreateAPIView):
                 """
                 serializer.save()
                 recent_comment_obj = Comments.objects.filter(post_id=post_id, commented_by=commented_by).first()
-                commented_at_time = DT.datetime.strftime(recent_comment_obj.created_at,"%Y-%m-%d %H:%M:%S")
+                commented_at_time = dt.datetime.strftime(recent_comment_obj.created_at, "%Y-%m-%d %H:%M:%S")
                 notification_data = {
                         'notified_user': post_owner,
                         'notified_by': commented_by,
                         'user_name': user_name,
                         'notification_receiver_email': post_owner_email,
                         'header_message': COMMENT_HEADER,
-                        'body_message': COMMENT_BODY.format(user_name,post_obj.title, commented_at_time,
+                        'body_message': COMMENT_BODY.format(user_name, post_obj.title, commented_at_time,
                                                             data['comment']),
                 }
                 is_send, data = send_notification(**notification_data)
 
                 if not is_send:
-                    return Response({'data': data, 'msg': 'Some error has occurred'},
+                    return Response({'data': data, 'msg': 'Some error occurred on Notifications'},
                                     status=status.HTTP_400_BAD_REQUEST)
                 """ After Notification Created We will Going To Save Serialized Data of Post Comment """
                 return Response({
@@ -367,10 +368,8 @@ class CommentOnPostView(generics.CreateAPIView):
                     'message': 'you commented on a post',
                     'data': serializer.data
                 })
-
-        return Response({
-            'data': serializer.errors, 'msg': 'Some error has occurred'}, status=status.HTTP_400_BAD_REQUEST
-        )
+        else:
+            raise ValidationError({"Error": "Post Owner is Not Active Or Post Owner Blocked You"})
 
 
 class RetrieveDestroyCommentAPIView(generics.RetrieveDestroyAPIView):
@@ -400,11 +399,12 @@ class RetrieveDestroyCommentAPIView(generics.RetrieveDestroyAPIView):
             self.check_object_permissions(self.request, comment_obj.post_id.posted_by)
         return comment_obj
 
-    def get(self, request, *args, **kwargs):
+    def post(self, request, *args, **kwargs):
         """ Overriding get method to check whether provided data is valid or not"""
         comment_obj = self.get_object()
         data = self.request.data
-        if 'post_id' and 'id' not in data:
+        print(data)
+        if 'post_id' not in data or 'id' not in data:
             return Response({"msg": "'post_id and 'id' are Required Field For Get Comment Data "},
                             status=status.HTTP_400_BAD_REQUEST)
         if not comment_obj:
@@ -454,7 +454,6 @@ class RetrieveDestroyLikeAPIView(generics.RetrieveDestroyAPIView):
         return post_like_obj
 
     def get(self, request, *args, **kwargs):
-        user_id = self.request.user.id
         post_like_obj = self.get_object()
         data = self.request.data
         if 'post_id' and 'id' not in data:
@@ -487,8 +486,8 @@ class TrendingFeedAPIView(generics.ListAPIView):
 
     def get_queryset(self):
         """getting Latest Trending Posts Through data of Today and """
-        today = DT.date.today()
-        week_ago = today - DT.timedelta(days=7)
+        today = dt.date.today()
+        week_ago = today - dt.timedelta(days=7)
         queryset = Posts.objects.filter(is_public=True).annotate(
             latest_like=Count('post_like', filter=Q(post_like__created_at__gte=week_ago))
         ).order_by("-latest_like")[:10]

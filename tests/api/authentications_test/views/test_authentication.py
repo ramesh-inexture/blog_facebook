@@ -62,7 +62,7 @@ def test_get_profile(auth_user_client):
     assert data["email"] == "dummy@gmail.com"
     assert data["first_name"] == ""
     assert data["last_name"] == ""
-    
+
 
 @pytest.mark.django_db
 def test_update_profile_success(auth_user_client):
@@ -122,7 +122,7 @@ def test_restrict_unrestrict_user_by_admin_fail(superuser, auth_superuser_client
 def test_block_user_by_admin_success(superuser, auth_superuser_client, user):
     users_id = user.id
     payload = {
-        "is_active": "False"
+        "is_active": False
     }
     response = auth_superuser_client.patch(f"/api/user/restrict-unrestrict-user/{users_id}/", payload)
     data = response.data
