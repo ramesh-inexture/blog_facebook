@@ -207,7 +207,7 @@ class SinglePostListView(generics.RetrieveAPIView):
                 status=status.HTTP_400_BAD_REQUEST
                 )
         """ checking Provided post_id is Valid or not"""
-        posts_obj = self.get_queryset()[0]
+        posts_obj = self.get_object()
         if not posts_obj:
             return Response({
                 'msg': 'Data Not Found'
@@ -215,8 +215,6 @@ class SinglePostListView(generics.RetrieveAPIView):
 
         """Creating posts_obj to check active status of post owner and also checking if post is not public
          then they should have to be friend with user"""
-        # posts_obj = get_object_or_404(post_queryset)
-        # po
         post_owner = posts_obj.posted_by.id
         user = request.user.id
         is_post_owner_active = posts_obj.posted_by.is_active
@@ -225,10 +223,7 @@ class SinglePostListView(generics.RetrieveAPIView):
             is_friends = check_is_friend(post_owner, user)
             if not posts_obj.is_public:
                 if post_owner != user:
-                    if is_friends:
-                        if not is_friends[0]:
-                            raise ValidationError({"Error": "Only Friends Can See Posts"})
-                    else:
+                    if is_friends is None or not is_friends[0]:
                         raise ValidationError({"Error": "Only Friends Can See Posts"})
 
                 """ if valid post_id is Provided and if data is available then it will return that data  """
