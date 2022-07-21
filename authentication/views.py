@@ -42,6 +42,7 @@ class UserLoginView(APIView):
         serializer.is_valid(raise_exception=True)
         email = serializer.data.get('email')
         password = serializer.data.get('password')
+
         user = authenticate(email=email, password=password)
         if user:
             token = get_tokens_for_user(user)
@@ -123,7 +124,7 @@ class BlockUserView(generics.RetrieveUpdateAPIView):
 
         data = request.data
         if 'is_active' in data:
-            if data['is_active'] == True or data['is_active'].capitalize() == 'T' or data['is_active'].capitalize() ==\
+            if data['is_active'].capitalize() == 'T' or data['is_active'].capitalize() ==\
                     'True':
                 msg = cons.UNBLOCK_USER
             else:
@@ -142,22 +143,22 @@ class BlockOtherUsersAPIView(APIView):
     In This View first we get User_id of Main User as Blocked_by and User id Of Other User which want to Block
     Will be Taken as pk From URL when we block any User then They will be Unfriends Automatically"""
 
-    def post(self, request, pk, format=None):
+    def post(self, request, pk):
         blocked_by = request.user.id
         if pk == blocked_by:
             raise ValidationError({"Error": "User can Not Block Own Account"})
-        data={
+        data = {
             "blocked_by": blocked_by,
             "blocked_user": pk
         }
-        friend_obj = get_friend_object(blocked_by,pk)
+        friend_obj = get_friend_object(blocked_by, pk)
         if friend_obj:
             sender_id = friend_obj.sender_id_id
             receiver_id = friend_obj.receiver_id_id
             Friends.objects.filter(sender_id=sender_id, receiver_id=receiver_id).delete()
 
         """If User is Blocked then it will Unblock that User or If User is Not Blocked then it will Block That User"""
-        blocked_user_obj = RestrictedUsers.objects.filter(blocked_user=pk,blocked_by=blocked_by)
+        blocked_user_obj = RestrictedUsers.objects.filter(blocked_user=pk, blocked_by=blocked_by)
         if blocked_user_obj:
             blocked_user_obj.delete()
             return Response({'msg': UNBLOCK_USER}, status=status.HTTP_200_OK)

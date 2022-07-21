@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from Friends.utils import check_is_friend
 from authentication.models import RestrictedUsers
 from authentication.permissions import IsUserActive
-from blog.constants import FRIEND_REQUEST_HEADER,FRIEND_REQUEST_BODY,ACCEPT_FRIEND_REQUEST_BODY
+from blog.constants import FRIEND_REQUEST_HEADER, FRIEND_REQUEST_BODY, ACCEPT_FRIEND_REQUEST_BODY
 from django.db.models import Q
 from notifications.utils import send_notification
 from .models import User, Friends
@@ -41,13 +41,14 @@ class MakeFriendRequestView(generics.CreateAPIView):
 
         """Getting Data with data fields (mainly receiver_id) from users to create request 
         through data = request.data"""
-        data = request.data
+        data = request.data.copy()
+
         data['sender_id'] = sender_id
         receiver_id = data['receiver_id']
 
         """ checking that sender_id and receiver_id are same or not if same then raise error or return Response"""
         if str(sender_id) == str(receiver_id):
-            return Response({'msg': 'sender_id and receiver_id can not be same'})
+            return Response({'msg': 'sender_id and receiver_id can not be same'},status=status.HTTP_400_BAD_REQUEST)
         receiver_data = User.objects.get(id=receiver_id)
         is_friend_user_active = receiver_data.is_active
         blocked_by_friend_user = RestrictedUsers.objects.filter(blocked_by=receiver_id, blocked_user=sender_id)
@@ -59,12 +60,15 @@ class MakeFriendRequestView(generics.CreateAPIView):
                 check_for_friends = friend_request[0]
                 sender = friend_request[1]
                 """ Conditions for different different scenarios of friend request and their status """
-                if check_for_friends :
-                    return Response({'msg': f'receiver_id {receiver_id} is Already a Friend'}, status=status.HTTP_400_BAD_REQUEST)
+                if check_for_friends:
+                    return Response({'msg': f'receiver_id {receiver_id} is Already a Friend'},
+                                    status=status.HTTP_400_BAD_REQUEST)
                 elif not check_for_friends and sender == int(sender_id):
-                    return Response({'msg': 'You have Already sent a friend request'}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({'msg': 'You have Already sent a friend request'},
+                                    status=status.HTTP_400_BAD_REQUEST)
                 else:
-                    return Response({'msg': 'You have A Pending request from this User'}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({'msg': 'You have A Pending request from this User'},
+                                    status=status.HTTP_400_BAD_REQUEST)
 
             serializer = self.serializer_class(data=data)
             if serializer.is_valid():
@@ -94,10 +98,9 @@ class MakeFriendRequestView(generics.CreateAPIView):
 
                 serializer.save()
                 return Response({
-                    'status': 200,
                     'message': 'Friend Request created',
                     'data': serializer.data
-                })
+                }, status=status.HTTP_201_CREATED,)
             return Response({'data': serializer.errors, 'msg': 'Some error has occurred'})
 
         else:
@@ -126,8 +129,8 @@ class SeeFriendRequestView(generics.ListAPIView):
 
 
 class SeeFriendsListAPIView(generics.ListAPIView):
-    """ List View Of All Pending Friend Requests """
-    serializer_class = ListFriendRequestSerializer
+    """ List View Of All Friends of The User  """
+    serializer_class = AllFriendSerializer
     permission_classes = [IsAuthenticated, IsUserActive]
     pagination_class = PageNumberPagination
 
@@ -149,9 +152,10 @@ class SeeFriendsListAPIView(generics.ListAPIView):
         """ note: here we can even use serializer without writing instance=user
             ex.: serializer = AllFriendSerializer(users, many=True)"""
 
-        serializer = AllFriendSerializer(instance=users, many=True)
+        serializer = AllFriendSerializer(many=True, instance=users)
         """ Note: serializer.is_valid(raise_exception=True)  --> here we were getting some error 
         when we do raise_exception=True"""
+        print(serializer.data)
         return Response({'data': serializer.data})
 
 
@@ -199,13 +203,14 @@ class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
         """
         user_id = self.request.user.id
         friends_obj = self.get_object()
-        if not friends_obj :
+        if not friends_obj:
             return Response({"msg": " 'Sender_id' or 'receiver_id' is Required "}, status=status.HTTP_400_BAD_REQUEST)
         friend_status = friends_obj.is_friend
         if not friend_status:
             data = request.data
-            if 'receiver_id' in data and int(data['receiver_id']) != int(user_id): # data.keys removed
-                return Response({'msg': 'You can Not Accept Your Own Sent Request'}, status=status.HTTP_401_UNAUTHORIZED)
+            if 'receiver_id' in data and int(data['receiver_id']) != int(user_id):  # data.keys removed
+                return Response({'msg': 'You can Not Accept Your Own Sent Request'},
+                                status=status.HTTP_401_UNAUTHORIZED)
             if 'is_friend' not in data:   # data.keys removed
                 return Response({'msg': " 'is_friend' is required to Accept Friend Request"},
                                 status=status.HTTP_400_BAD_REQUEST)
@@ -250,6 +255,10 @@ class ManageFriendRequestView(generics.RetrieveUpdateDestroyAPIView):
 
     def delete(self, request, *args, **kwargs):
         """deleting file object of provide user_id"""
+        friends_obj = self.get_object()
+        if not friends_obj:
+            return Response({'Details': 'Data Not Found'},
+                            status=status.HTTP_404_NOT_FOUND)
         response = super(ManageFriendRequestView, self).destroy(request, *args, **kwargs)
         return Response(
             {"data": response.data, "message": "Removed Friend or Friend Request"},

@@ -1,5 +1,5 @@
 LIKE_HEADER = 'Post Like'
-LIKE_BODY = '{} Liked your Post titled {} on {}'
+LIKE_BODY = '{user} Liked your Post titled {title} on {create_date}'
 COMMENT_HEADER = 'Post Comment'
 COMMENT_BODY = '{} Commented On Post titled {} on {}: "{}"'
 FRIEND_REQUEST_HEADER = 'Friend Request'
